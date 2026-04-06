@@ -5,23 +5,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.config import get_env, load_env
-
-load_env()
+from app.config import OPENAI_MODEL
 
 from deepagents import create_deep_agent
 from langchain_core.messages import HumanMessage
 
 from app.agent.prompts import agent_system_prompt as research_instructions
-from app.agent.tools import internet_search
-
-model_name = get_env("OPENAI_MODEL", "gpt-4.1-mini")
+from app.agent.tools import internet_search, knowledge_base_search
 
 agent = create_deep_agent(
     name="research_agent",
-    model=model_name,
+    model=OPENAI_MODEL,
     system_prompt=research_instructions,
-    tools=[internet_search],
+    tools=[knowledge_base_search, internet_search],
 )
 
 

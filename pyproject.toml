@@ -1,11 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
 [project]
 name = "rag-deep-agent"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "deepagents>=0.4.12",
+    "llama-index-core==0.14.20",
+    "llama-index-embeddings-openai==0.6.0",
+    "llama-index-retrievers-bm25==0.7.1",
+    "llama-index-vector-stores-qdrant==0.10.0",
     "langchain-openai>=1.1.12",
+    "qdrant-client==1.17.1",
     "tavily-python>=0.7.23",
 ]
+
+[project.scripts]
+rag-cli = "app.cli:main"
+ingest-knowledge-base = "app.ingestion.loader:main"
+search-knowledge-base = "app.retrieval.retrieval:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
