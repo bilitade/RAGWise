@@ -10,3 +10,5 @@ wheels/
 .venv
 
 .env
+app/db/knowledge_base_nodes.jsonl
+uploads

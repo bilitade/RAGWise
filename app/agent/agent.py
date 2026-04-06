@@ -1,3 +1,4 @@
+import argparse
 import sys
 from pathlib import Path
 
@@ -5,27 +6,37 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from deepagents import create_deep_agent
+from langchain_core.messages import AIMessageChunk, HumanMessage
+from langchain_openai import ChatOpenAI
+
+from app.agent.prompts import agent_system_prompt
+from app.agent.tools import internet_search, knowledge_base_search
 from app.config import OPENAI_MODEL
 
-from deepagents import create_deep_agent
-from langchain_core.messages import HumanMessage
-from langchain_core.messages import AIMessageChunk
 
-from app.agent.prompts import agent_system_prompt as research_instructions
-from app.agent.tools import internet_search, knowledge_base_search
+def build_agent():
+    model = ChatOpenAI(
+        model=OPENAI_MODEL,
+        streaming=True,
+    )
+    return create_deep_agent(
+        name="research_agent",
+        model=model,
+        system_prompt=agent_system_prompt,
+        tools=[knowledge_base_search, internet_search],
+    )
 
-agent = create_deep_agent(
-    name="research_agent",
-    model=OPENAI_MODEL,
-    system_prompt=research_instructions,
-    tools=[knowledge_base_search, internet_search],
-)
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the banking deep agent.")
+    parser.add_argument("--query", help="Question to ask the agent.")
+    args = parser.parse_args()
 
-if __name__ == "__main__":
-    query = input("Enter your research topic: ")
+    query = args.query or input("Enter your research topic: ")
+    agent = build_agent()
+
     print("\n=== Streaming Response ===\n")
-
     streamed_text = False
     for message_chunk, _metadata in agent.stream(
         {"messages": [HumanMessage(content=query)]},
@@ -38,3 +49,7 @@ if __name__ == "__main__":
 
     if streamed_text:
         print()
+
+
+if __name__ == "__main__":
+    main()

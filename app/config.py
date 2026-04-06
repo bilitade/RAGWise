@@ -56,6 +56,10 @@ QDRANT_API_KEY = get_env("QDRANT_API_KEY")
 QDRANT_TIMEOUT = get_float_env("QDRANT_TIMEOUT", 10.0)
 BM25_CACHE_PATH = DB_DIR / f"{QDRANT_COLLECTION}_nodes.jsonl"
 
+REDIS_URL = get_env("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = get_env("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = get_env("CELERY_RESULT_BACKEND", REDIS_URL)
+
 OPENAI_MODEL = get_env("OPENAI_MODEL", "gpt-4.1-mini")
 OPENAI_EMBED_MODEL = get_env("OPENAI_EMBED_MODEL", "text-embedding-3-small")
 

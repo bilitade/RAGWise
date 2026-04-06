@@ -1,7 +1,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Literal
 
 from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
@@ -18,14 +18,67 @@ from app.config import (
 from app.db.qdrant import QdrantStore
 
 
+IngestionStageName = Literal[
+    "queued",
+    "upload_received",
+    "discovering_files",
+    "loading_documents",
+    "chunking_documents",
+    "preparing_vector_store",
+    "embedding_and_indexing",
+    "persisting_bm25_cache",
+    "completed",
+    "failed",
+]
+
+IngestionStageStatus = Literal["pending", "running", "completed", "failed"]
+
+
+class IngestionStage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: IngestionStageName
+    status: IngestionStageStatus
+    progress: int
+    message: str
+    details: dict[str, Any] = {}
+
+
 class IngestionResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    input_dir: str
+    recreate_collection: bool
     documents_indexed: int
     nodes_indexed: int
     collection_name: str
     qdrant_points: int
     bm25_cache_path: str
+    stages: list[IngestionStage]
+
+
+ProgressCallback = Callable[[IngestionStage], None]
+
+
+def _emit_progress(
+    callback: ProgressCallback | None,
+    *,
+    name: IngestionStageName,
+    status: IngestionStageStatus,
+    progress: int,
+    message: str,
+    details: dict[str, Any] | None = None,
+) -> IngestionStage:
+    stage = IngestionStage(
+        name=name,
+        status=status,
+        progress=progress,
+        message=message,
+        details=details or {},
+    )
+    if callback is not None:
+        callback(stage)
+    return stage
 
 
 def _build_embed_model() -> OpenAIEmbedding:
@@ -37,6 +90,10 @@ def _extract_node_text(node: Any) -> str:
     if text:
         return text
     return node.get_content()
+
+
+def _count_source_files(source_dir: Path) -> int:
+    return sum(1 for path in source_dir.rglob("*") if path.is_file())
 
 
 def load_documents(input_dir: str | Path | None = None):
@@ -80,36 +137,149 @@ def persist_bm25_cache(nodes, cache_path: Path = BM25_CACHE_PATH) -> None:
 def ingest_documents(
     input_dir: str | Path | None = None,
     recreate_collection: bool = True,
+    progress_callback: ProgressCallback | None = None,
 ) -> IngestionResult:
-    documents = load_documents(input_dir=input_dir)
-    nodes = build_nodes(documents)
-    if not nodes:
-        raise ValueError("No nodes were generated from the loaded documents.")
+    source_dir = Path(input_dir) if input_dir else UPLOAD_DIR
+    stages: list[IngestionStage] = []
 
-    embed_model = _build_embed_model()
-    vector_size = len(embed_model.get_text_embedding("dimension probe"))
+    try:
+        file_count = _count_source_files(source_dir)
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="upload_received",
+                status="running",
+                progress=2,
+                message="Ingestion request received.",
+                details={
+                    "input_dir": str(source_dir),
+                    "recreate_collection": recreate_collection,
+                },
+            )
+        )
 
-    qdrant = QdrantStore()
-    qdrant.ensure_collection(vector_size=vector_size, recreate=recreate_collection)
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="discovering_files",
+                status="running",
+                progress=8,
+                message="Discovering uploaded files.",
+                details={
+                    "input_dir": str(source_dir),
+                    "files_detected": file_count,
+                },
+            )
+        )
 
-    storage_context = StorageContext.from_defaults(
-        vector_store=qdrant.get_vector_store(),
-    )
-    VectorStoreIndex(
-        nodes=nodes,
-        storage_context=storage_context,
-        embed_model=embed_model,
-    )
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="loading_documents",
+                status="running",
+                progress=20,
+                message="Loading documents for parsing.",
+                details={"input_dir": str(source_dir)},
+            )
+        )
+        documents = load_documents(input_dir=source_dir)
 
-    persist_bm25_cache(nodes)
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="chunking_documents",
+                status="running",
+                progress=40,
+                message="Splitting documents into retrieval chunks.",
+                details={"documents_loaded": len(documents)},
+            )
+        )
+        nodes = build_nodes(documents)
+        if not nodes:
+            raise ValueError("No nodes were generated from the loaded documents.")
 
-    return IngestionResult(
-        documents_indexed=len(documents),
-        nodes_indexed=len(nodes),
-        collection_name=qdrant.collection_name,
-        qdrant_points=qdrant.count(),
-        bm25_cache_path=str(BM25_CACHE_PATH),
-    )
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="preparing_vector_store",
+                status="running",
+                progress=60,
+                message="Preparing embedding model and Qdrant collection.",
+                details={"nodes_generated": len(nodes)},
+            )
+        )
+        embed_model = _build_embed_model()
+        vector_size = len(embed_model.get_text_embedding("dimension probe"))
+        qdrant = QdrantStore()
+        qdrant.ensure_collection(vector_size=vector_size, recreate=recreate_collection)
+
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="embedding_and_indexing",
+                status="running",
+                progress=80,
+                message="Embedding chunks and storing vectors in Qdrant.",
+                details={"vector_size": vector_size, "nodes_generated": len(nodes)},
+            )
+        )
+        storage_context = StorageContext.from_defaults(
+            vector_store=qdrant.get_vector_store(),
+        )
+        VectorStoreIndex(
+            nodes=nodes,
+            storage_context=storage_context,
+            embed_model=embed_model,
+        )
+
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="persisting_bm25_cache",
+                status="running",
+                progress=92,
+                message="Persisting lexical retrieval cache.",
+                details={"bm25_cache_path": str(BM25_CACHE_PATH)},
+            )
+        )
+        persist_bm25_cache(nodes)
+
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="completed",
+                status="completed",
+                progress=100,
+                message="Ingestion completed successfully.",
+                details={
+                    "documents_indexed": len(documents),
+                    "nodes_indexed": len(nodes),
+                },
+            )
+        )
+
+        return IngestionResult(
+            input_dir=str(source_dir),
+            recreate_collection=recreate_collection,
+            documents_indexed=len(documents),
+            nodes_indexed=len(nodes),
+            collection_name=qdrant.collection_name,
+            qdrant_points=qdrant.count(),
+            bm25_cache_path=str(BM25_CACHE_PATH),
+            stages=stages,
+        )
+    except Exception as exc:
+        stages.append(
+            _emit_progress(
+                progress_callback,
+                name="failed",
+                status="failed",
+                progress=100,
+                message="Ingestion failed.",
+                details={"error": str(exc), "input_dir": str(source_dir)},
+            )
+        )
+        raise
 
 
 def main() -> None:

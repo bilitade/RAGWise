@@ -1,9 +1,18 @@
 import argparse
 import json
 
-from app.config import BM25_CACHE_PATH, QDRANT_COLLECTION, QDRANT_URL, UPLOAD_DIR
+from app.config import (
+    BM25_CACHE_PATH,
+    CELERY_BROKER_URL,
+    CELERY_RESULT_BACKEND,
+    QDRANT_COLLECTION,
+    QDRANT_URL,
+    REDIS_URL,
+    UPLOAD_DIR,
+)
 from app.db.qdrant import QdrantStore
 from app.ingestion.loader import ingest_documents
+from app.ingestion.tasks import get_task_result, ingest_documents_task
 from app.retrieval.retrieval import hybrid_search, similarity_search
 
 
@@ -27,6 +36,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--append",
         action="store_true",
         help="Append to the existing collection instead of recreating it.",
+    )
+    ingest_parser.add_argument(
+        "--async",
+        dest="run_async",
+        action="store_true",
+        help="Enqueue ingestion in Celery instead of running inline.",
     )
 
     search_parser = subparsers.add_parser(
@@ -62,10 +77,39 @@ def _build_parser() -> argparse.ArgumentParser:
         "status",
         help="Show Qdrant collection and BM25 cache status.",
     )
+
+    task_status_parser = subparsers.add_parser(
+        "task-status",
+        help="Show the status of an ingestion task.",
+    )
+    task_status_parser.add_argument("task_id", help="Celery task id.")
+
+    task_result_parser = subparsers.add_parser(
+        "task-result",
+        help="Fetch the result of a completed ingestion task.",
+    )
+    task_result_parser.add_argument("task_id", help="Celery task id.")
     return parser
 
 
 def _run_ingest(args: argparse.Namespace) -> None:
+    if args.run_async:
+        async_result = ingest_documents_task.delay(
+            input_dir=args.input_dir,
+            recreate_collection=not args.append,
+        )
+        print(
+            json.dumps(
+                {
+                    "task_id": async_result.id,
+                    "status": async_result.status,
+                    "broker_url": CELERY_BROKER_URL,
+                },
+                indent=2,
+            )
+        )
+        return
+
     result = ingest_documents(
         input_dir=args.input_dir,
         recreate_collection=not args.append,
@@ -97,8 +141,49 @@ def _run_status() -> None:
         "qdrant_points": qdrant.count() if collection_exists else 0,
         "bm25_cache_path": str(BM25_CACHE_PATH),
         "bm25_cache_exists": BM25_CACHE_PATH.exists(),
+        "redis_url": REDIS_URL,
+        "celery_broker_url": CELERY_BROKER_URL,
+        "celery_result_backend": CELERY_RESULT_BACKEND,
     }
     print(json.dumps(status, indent=2))
+
+
+def _run_task_status(args: argparse.Namespace) -> None:
+    task = get_task_result(args.task_id)
+    stage = None
+    stage_history = None
+    if isinstance(task.info, dict):
+        stage = task.info.get("stage")
+        stage_history = task.info.get("stage_history")
+    print(
+        json.dumps(
+            {
+                "task_id": task.id,
+                "status": task.status,
+                "successful": task.successful(),
+                "failed": task.failed(),
+                "stage": stage,
+                "stage_history": stage_history,
+            },
+            indent=2,
+        )
+    )
+
+
+def _run_task_result(args: argparse.Namespace) -> None:
+    task = get_task_result(args.task_id)
+    payload = {
+        "task_id": task.id,
+        "status": task.status,
+    }
+    if isinstance(task.info, dict):
+        payload["stage"] = task.info.get("stage")
+        payload["stage_history"] = task.info.get("stage_history")
+    if task.successful():
+        payload["result"] = task.result
+    elif task.failed():
+        payload["error"] = str(task.result)
+    print(json.dumps(payload, indent=2))
 
 
 def main() -> None:
@@ -115,6 +200,14 @@ def main() -> None:
 
     if args.command == "status":
         _run_status()
+        return
+
+    if args.command == "task-status":
+        _run_task_status(args)
+        return
+
+    if args.command == "task-result":
+        _run_task_result(args)
         return
 
     parser.error(f"Unknown command: {args.command}")
