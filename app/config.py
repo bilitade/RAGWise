@@ -63,5 +63,13 @@ CELERY_RESULT_BACKEND = get_env("CELERY_RESULT_BACKEND", REDIS_URL)
 OPENAI_MODEL = get_env("OPENAI_MODEL", "gpt-4.1-mini")
 OPENAI_EMBED_MODEL = get_env("OPENAI_EMBED_MODEL", "text-embedding-3-small")
 
+API_HOST = get_env("API_HOST", "0.0.0.0")
+API_PORT = get_int_env("API_PORT", 8000)
+API_CORS_ORIGINS = [
+    origin.strip()
+    for origin in get_env("API_CORS_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
+
 INGEST_CHUNK_SIZE = get_int_env("INGEST_CHUNK_SIZE", 512)
 INGEST_CHUNK_OVERLAP = get_int_env("INGEST_CHUNK_OVERLAP", 64)

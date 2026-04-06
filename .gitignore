@@ -11,4 +11,7 @@ wheels/
 
 .env
 app/db/knowledge_base_nodes.jsonl
-uploads
+upload
+frontend/node_modules
+frontend/dist
+.codex

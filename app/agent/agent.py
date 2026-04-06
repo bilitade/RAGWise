@@ -1,5 +1,6 @@
 import argparse
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -28,16 +29,25 @@ def build_agent():
     )
 
 
+def stream_agent_text(query: str) -> Iterator[str]:
+    agent = build_agent()
+    for message_chunk, _metadata in agent.stream(
+        {"messages": [HumanMessage(content=query)]},
+        stream_mode="messages",
+    ):
+        if isinstance(message_chunk, AIMessageChunk) and message_chunk.content:
+            yield str(message_chunk.content)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the banking deep agent.")
     parser.add_argument("--query", help="Question to ask the agent.")
     args = parser.parse_args()
 
     query = args.query or input("Enter your research topic: ")
-    agent = build_agent()
-
     print("\n=== Streaming Response ===\n")
     streamed_text = False
+    agent = build_agent()
     for message_chunk, _metadata in agent.stream(
         {"messages": [HumanMessage(content=query)]},
         stream_mode="messages",
