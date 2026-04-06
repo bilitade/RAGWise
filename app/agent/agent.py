@@ -16,6 +16,22 @@ from app.agent.tools import internet_search, knowledge_base_search
 from app.config import OPENAI_MODEL
 
 
+def _build_query_from_messages(messages: list[dict[str, str]] | None, query: str | None = None) -> str:
+    if query:
+        return query
+    if not messages:
+        raise ValueError("A query or chat messages are required.")
+
+    transcript: list[str] = []
+    for message in messages:
+        role = message.get("role", "user").strip().capitalize()
+        content = message.get("content", "").strip()
+        if content:
+            transcript.append(f"{role}: {content}")
+    transcript.append("Answer the latest user request using the appropriate tools when needed.")
+    return "\n".join(transcript)
+
+
 def build_agent():
     model = ChatOpenAI(
         model=OPENAI_MODEL,
@@ -29,10 +45,15 @@ def build_agent():
     )
 
 
-def stream_agent_text(query: str) -> Iterator[str]:
+def stream_agent_text(
+    query: str | None = None,
+    *,
+    messages: list[dict[str, str]] | None = None,
+) -> Iterator[str]:
+    compiled_query = _build_query_from_messages(messages, query)
     agent = build_agent()
     for message_chunk, _metadata in agent.stream(
-        {"messages": [HumanMessage(content=query)]},
+        {"messages": [HumanMessage(content=compiled_query)]},
         stream_mode="messages",
     ):
         if isinstance(message_chunk, AIMessageChunk) and message_chunk.content:

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from app.api.routers import chat, files, health, ingestion, retrieval
+from app.api.routers import chat, documents, health
 from app.config import API_CORS_ORIGINS, API_HOST, API_PORT
 
 
@@ -20,9 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix="/api")
-app.include_router(files.router, prefix="/api")
-app.include_router(ingestion.router, prefix="/api")
-app.include_router(retrieval.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 
 

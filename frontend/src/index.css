@@ -1,13 +1,213 @@
+@import url("https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap");
 @import "tailwindcss";
 
 :root {
-  color: #e2e8f0;
-  background: #020617;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --background: #070a12;
+  --surface: #0f172a;
+  --elevated: #111c2d;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: rgba(255, 255, 255, 0.06);
+  --primary: #3b82f6;
+  --accent: #e11d48;
+  --data: #06b6d4;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --brand-gradient: linear-gradient(135deg, #3b82f6, #06b6d4, #e11d48);
+  color: var(--text-primary);
+  background: var(--background);
+  font-family: "Satoshi", "Inter", "Segoe UI", sans-serif;
+}
+
+:root[data-theme="light"] {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --elevated: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --border: rgba(15, 23, 42, 0.08);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 26%),
+    radial-gradient(circle at 80% 0%, rgba(225, 29, 72, 0.12), transparent 20%),
+    var(--background);
+  color: var(--text-primary);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  color: var(--text-primary);
+}
+
+.brand-card {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.brand-elevated {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--elevated) 92%, transparent);
+}
+
+.heading-kicker {
+  color: var(--data);
+  letter-spacing: 0.28em;
+}
+
+.brand-title {
+  letter-spacing: -0.02em;
+}
+
+.brand-mark {
+  font-size: clamp(1.4rem, 2vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.brand-mark-core {
+  color: var(--text-primary);
+}
+
+.brand-mark-accent {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.brand-hero::before {
+  content: "";
+  position: absolute;
+  inset: -20% auto auto 60%;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.18), transparent 65%);
+  pointer-events: none;
+}
+
+.brand-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto auto -12% -6%;
+  width: 14rem;
+  height: 14rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(225, 29, 72, 0.12), transparent 68%);
+  pointer-events: none;
+}
+
+.brand-grid {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center;
+}
+
+.landing-stat {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.brand-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.brand-gradient {
+  background: var(--brand-gradient);
+  color: white;
+}
+
+.brand-secondary {
+  background: color-mix(in srgb, var(--elevated) 84%, transparent);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.brand-primary:hover,
+.brand-gradient:hover {
+  filter: brightness(1.08);
+}
+
+.brand-pill-active {
+  background: color-mix(in srgb, var(--primary) 72%, white 10%);
+  color: white;
+}
+
+.brand-pill {
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.surface-input {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 86%, var(--surface));
+  color: var(--text-primary);
+}
+
+.surface-input::placeholder {
+  color: var(--text-muted);
+}
+
+.status-success {
+  color: var(--success);
+}
+
+.status-warning {
+  color: var(--warning);
+}
+
+.status-error {
+  color: var(--error);
+}
+
+.status-data {
+  color: var(--data);
+}
+
+.progress-track {
+  background: color-mix(in srgb, var(--elevated) 80%, transparent);
+}
+
+.progress-fill {
+  background: var(--brand-gradient);
+}
+
+.soft-shadow {
+  box-shadow: none;
 }

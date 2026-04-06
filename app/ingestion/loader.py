@@ -1,10 +1,12 @@
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Callable, Literal
 
 from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.schema import Document
 from llama_index.embeddings.openai import OpenAIEmbedding
 from pydantic import BaseModel, ConfigDict
 
@@ -92,27 +94,62 @@ def _extract_node_text(node: Any) -> str:
     return node.get_content()
 
 
-def _count_source_files(source_dir: Path) -> int:
-    return sum(1 for path in source_dir.rglob("*") if path.is_file())
+def build_document_id(file_path: str | Path) -> str:
+    path = Path(file_path).resolve()
+    try:
+        normalized_path = path.relative_to(UPLOAD_DIR.resolve()).as_posix()
+    except ValueError:
+        normalized_path = path.as_posix()
+    return hashlib.sha1(normalized_path.encode("utf-8")).hexdigest()
 
 
-def load_documents(input_dir: str | Path | None = None):
+def _resolve_relative_path(file_path: Path) -> str:
+    try:
+        return file_path.resolve().relative_to(UPLOAD_DIR.resolve()).as_posix()
+    except ValueError:
+        return file_path.resolve().name
+
+
+def list_source_files(input_dir: str | Path | None = None) -> list[Path]:
     source_dir = Path(input_dir) if input_dir else UPLOAD_DIR
     if not source_dir.exists():
         raise FileNotFoundError(f"Input directory does not exist: {source_dir}")
+    return sorted(path for path in source_dir.rglob("*") if path.is_file())
+
+
+def load_documents_from_files(file_paths: list[Path]) -> list[Document]:
+    if not file_paths:
+        raise ValueError("No files were provided for ingestion.")
 
     reader = SimpleDirectoryReader(
-        input_dir=str(source_dir),
-        recursive=True,
+        input_files=[str(path) for path in file_paths],
         filename_as_id=True,
     )
     documents = reader.load_data()
     if not documents:
-        raise ValueError(f"No documents found in {source_dir}")
-    return documents
+        raise ValueError("No documents were loaded from the provided files.")
+
+    enriched_documents: list[Document] = []
+    for document in documents:
+        metadata = dict(document.metadata or {})
+        file_path_value = metadata.get("file_path") or metadata.get("filename") or document.doc_id
+        source_path = Path(str(file_path_value)).resolve()
+        metadata.update(
+            {
+                "document_id": build_document_id(source_path),
+                "filename": source_path.name,
+                "source_path": str(source_path),
+                "relative_path": _resolve_relative_path(source_path),
+            }
+        )
+        document.metadata = metadata
+        document.doc_id = metadata["document_id"]
+        enriched_documents.append(document)
+
+    return enriched_documents
 
 
-def build_nodes(documents):
+def build_nodes(documents: list[Document]):
     splitter = SentenceSplitter(
         chunk_size=INGEST_CHUNK_SIZE,
         chunk_overlap=INGEST_CHUNK_OVERLAP,
@@ -134,16 +171,31 @@ def persist_bm25_cache(nodes, cache_path: Path = BM25_CACHE_PATH) -> None:
             cache_file.write("\n")
 
 
-def ingest_documents(
-    input_dir: str | Path | None = None,
-    recreate_collection: bool = True,
+def rebuild_bm25_cache_from_files(file_paths: list[Path], cache_path: Path = BM25_CACHE_PATH) -> None:
+    if not file_paths:
+        if cache_path.exists():
+            cache_path.unlink()
+        return
+
+    documents = load_documents_from_files(file_paths)
+    nodes = build_nodes(documents)
+    persist_bm25_cache(nodes, cache_path=cache_path)
+
+
+def ingest_file_paths(
+    file_paths: list[Path],
+    *,
+    recreate_collection: bool = False,
+    replace_existing_documents: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> IngestionResult:
-    source_dir = Path(input_dir) if input_dir else UPLOAD_DIR
+    if not file_paths:
+        raise ValueError("No files were provided for ingestion.")
+
+    normalized_file_paths = [path.resolve() for path in file_paths]
     stages: list[IngestionStage] = []
 
     try:
-        file_count = _count_source_files(source_dir)
         stages.append(
             _emit_progress(
                 progress_callback,
@@ -152,8 +204,9 @@ def ingest_documents(
                 progress=2,
                 message="Ingestion request received.",
                 details={
-                    "input_dir": str(source_dir),
+                    "files_requested": len(normalized_file_paths),
                     "recreate_collection": recreate_collection,
+                    "replace_existing_documents": replace_existing_documents,
                 },
             )
         )
@@ -166,8 +219,8 @@ def ingest_documents(
                 progress=8,
                 message="Discovering uploaded files.",
                 details={
-                    "input_dir": str(source_dir),
-                    "files_detected": file_count,
+                    "files_detected": len(normalized_file_paths),
+                    "file_paths": [str(path) for path in normalized_file_paths],
                 },
             )
         )
@@ -179,10 +232,10 @@ def ingest_documents(
                 status="running",
                 progress=20,
                 message="Loading documents for parsing.",
-                details={"input_dir": str(source_dir)},
+                details={"files_detected": len(normalized_file_paths)},
             )
         )
-        documents = load_documents(input_dir=source_dir)
+        documents = load_documents_from_files(normalized_file_paths)
 
         stages.append(
             _emit_progress(
@@ -213,6 +266,10 @@ def ingest_documents(
         qdrant = QdrantStore()
         qdrant.ensure_collection(vector_size=vector_size, recreate=recreate_collection)
 
+        if replace_existing_documents:
+            for file_path in normalized_file_paths:
+                qdrant.delete_by_document_id(build_document_id(file_path))
+
         stages.append(
             _emit_progress(
                 progress_callback,
@@ -242,7 +299,6 @@ def ingest_documents(
                 details={"bm25_cache_path": str(BM25_CACHE_PATH)},
             )
         )
-        persist_bm25_cache(nodes)
 
         stages.append(
             _emit_progress(
@@ -259,7 +315,7 @@ def ingest_documents(
         )
 
         return IngestionResult(
-            input_dir=str(source_dir),
+            input_dir=str(UPLOAD_DIR),
             recreate_collection=recreate_collection,
             documents_indexed=len(documents),
             nodes_indexed=len(nodes),
@@ -276,10 +332,25 @@ def ingest_documents(
                 status="failed",
                 progress=100,
                 message="Ingestion failed.",
-                details={"error": str(exc), "input_dir": str(source_dir)},
+                details={"error": str(exc)},
             )
         )
         raise
+
+
+def ingest_documents(
+    input_dir: str | Path | None = None,
+    recreate_collection: bool = True,
+    progress_callback: ProgressCallback | None = None,
+) -> IngestionResult:
+    source_files = list_source_files(input_dir=input_dir)
+    result = ingest_file_paths(
+        source_files,
+        recreate_collection=recreate_collection,
+        replace_existing_documents=not recreate_collection,
+        progress_callback=progress_callback,
+    )
+    return result.model_copy(update={"input_dir": str(Path(input_dir) if input_dir else UPLOAD_DIR)})
 
 
 def main() -> None:

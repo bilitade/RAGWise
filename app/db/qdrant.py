@@ -65,6 +65,24 @@ class QdrantStore:
         if self.collection_exists():
             self.client.delete_collection(collection_name=self.collection_name)
 
+    def delete_by_document_id(self, document_id: str) -> None:
+        if not self.collection_exists():
+            return
+
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="document_id",
+                            match=models.MatchValue(value=document_id),
+                        )
+                    ]
+                )
+            ),
+        )
+
     def count(self) -> int:
         response = self.client.count(
             collection_name=self.collection_name,

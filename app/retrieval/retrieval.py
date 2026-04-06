@@ -85,6 +85,14 @@ def similarity_search(query: str, top_k: int = 5) -> list[SearchResult]:
     return [_to_search_result(result, source="vector") for result in results]
 
 
+def bm25_search(query: str, top_k: int = 5) -> list[SearchResult]:
+    results = BM25Retriever.from_defaults(
+        nodes=_load_bm25_nodes(),
+        similarity_top_k=top_k,
+    ).retrieve(query)
+    return [_to_search_result(result, source="bm25") for result in results]
+
+
 def hybrid_search(
     query: str,
     top_k: int = 5,
@@ -138,6 +146,20 @@ def hybrid_search(
         )
         for item in ordered
     ]
+
+
+def advanced_search(
+    query: str,
+    top_k: int = 5,
+    vector_top_k: int = 10,
+    bm25_top_k: int = 10,
+) -> list[SearchResult]:
+    return hybrid_search(
+        query=query,
+        top_k=top_k,
+        vector_top_k=vector_top_k,
+        bm25_top_k=bm25_top_k,
+    )
 
 
 def main() -> None:

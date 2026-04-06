@@ -1,3 +1,3 @@
-from app.api.routers import chat, files, health, ingestion, retrieval
+from app.api.routers import chat, documents, health
 
-__all__ = ["chat", "files", "health", "ingestion", "retrieval"]
+__all__ = ["chat", "documents", "health"]
