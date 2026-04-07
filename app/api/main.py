@@ -25,7 +25,7 @@ app.include_router(chat.router, prefix="/api")
 
 
 def main() -> None:
-    uvicorn.run("app.api.main:app", host=API_HOST, port=API_PORT, reload=False)
+    uvicorn.run("app.api.main:app", host=API_HOST, port=API_PORT, reload=True)
 
 
 if __name__ == "__main__":

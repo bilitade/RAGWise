@@ -432,7 +432,10 @@ export default function Chat({
                           activity={chatActivity}
                         />
                       ) : (
-                        <AssistantMessageBody content={message.content} />
+                        <AssistantMessageBody 
+                          content={message.content} 
+                          conversationTitle={activeConversation.title}
+                        />
                       )
                     ) : (
                       <div className="whitespace-pre-wrap">{message.content}</div>

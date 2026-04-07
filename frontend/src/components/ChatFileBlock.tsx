@@ -13,12 +13,14 @@ export default function ChatFileBlock({
   language,
   content,
   index,
+  baseName,
 }: {
   language: string | null;
   content: string;
   index: number;
+  baseName?: string;
 }) {
-  const spec = buildDownloadableFileSpec(language, content, index);
+  const spec = buildDownloadableFileSpec(language, content, index, baseName);
   const fileContent =
     spec.extension === "json" ? normalizeJsonContent(content) : content;
 
@@ -38,6 +40,7 @@ export default function ChatFileBlock({
           type="button"
           onClick={() => downloadTextFile(spec, fileContent)}
           className="chat-file-action"
+          title="Download this content as a file"
         >
           <FiDownload />
           Download

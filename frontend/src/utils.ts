@@ -224,10 +224,23 @@ export function normalizeJsonContent(content: string): string {
     }
 }
 
+export function slugify(text: string): string {
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "-") // Replace spaces with -
+        .replace(/[^\w-]+/g, "") // Remove all non-word chars
+        .replace(/--+/g, "-") // Replace multiple - with single -
+        .replace(/^-+/, "") // Trim - from start of text
+        .replace(/-+$/, ""); // Trim - from end of text
+}
+
 export function buildDownloadableFileSpec(
     language: string | null,
     content: string,
     index: number,
+    baseName?: string,
 ): DownloadableFileSpec {
     const normalizedLanguage =
         language?.toLowerCase() ??
@@ -242,9 +255,31 @@ export function buildDownloadableFileSpec(
             : "Text",
     };
 
+    // Attempt to extract a more specific title from the content
+    let subTitle = "";
+    if (isMarkdownLanguage(normalizedLanguage)) {
+        const headerMatch = content.match(/^#+\s+(.+)$/m);
+        if (headerMatch) subTitle = headerMatch[1];
+    } else if (normalizedLanguage === "json") {
+        try {
+            const parsed = JSON.parse(content);
+            subTitle = parsed.title || parsed.name || "";
+            if (!subTitle && typeof parsed === "object" && parsed !== null) {
+                // If no title/name, use the first key that isn't too long
+                const firstKey = Object.keys(parsed)[0];
+                if (firstKey && firstKey.length < 32) subTitle = firstKey;
+            }
+        } catch {
+            // Un-parseable JSON, fallback to topic
+        }
+    }
+
+    const finalBaseName = slugify(subTitle || baseName || "assistant-file");
+    const uniqueName = index === 999 ? finalBaseName : `${finalBaseName}-${index + 1}`;
+
     return {
         extension: mapped.extension,
-        filename: `assistant-file-${index + 1}.${mapped.extension}`,
+        filename: `${uniqueName}.${mapped.extension}`,
         language: mapped.label,
         mimeType: mapped.mimeType,
     };
@@ -261,10 +296,15 @@ export function downloadTextFile(
     const link = document.createElement("a");
     link.href = url;
     link.download = spec.filename;
+    
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    
+    // Delay revocation to ensure the browser has started the download
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 100);
 }
 
 export function getAssistantMessageDownloadPayload(
@@ -273,53 +313,24 @@ export function getAssistantMessageDownloadPayload(
     const trimmed = content.trim();
     if (!trimmed) return null;
 
-    try {
-        const normalizedJson = JSON.stringify(JSON.parse(trimmed), null, 2);
-        return {
-            spec: buildDownloadableFileSpec("json", normalizedJson, 0),
-            content: normalizedJson,
-        };
-    } catch {
-        // fall through
-    }
+    // Look for the explicit marker [DOWNLOAD_FILE: filename.ext]
+    const markerMatch = trimmed.match(/\[DOWNLOAD_FILE:\s*([^\]]+)\]/i);
+    if (!markerMatch) return null;
 
-    const fenceMatch = trimmed.match(
-        /^```([a-zA-Z0-9_+-]+)?\n([\s\S]*?)\n```$/,
-    );
-    if (fenceMatch) {
-        const language = fenceMatch[1]?.toLowerCase() ?? "txt";
-        const fileContent = fenceMatch[2];
-        const spec = buildDownloadableFileSpec(language, fileContent, 0);
-        return {
-            spec,
-            content:
-                spec.extension === "json"
-                    ? normalizeJsonContent(fileContent)
-                    : fileContent,
-        };
-    }
+    const filename = markerMatch[1].trim();
+    const extension = filename.split(".").pop()?.toLowerCase() ?? "txt";
+    const cleanContent = trimmed.replace(markerMatch[0], "").trim();
 
-    const looksLikeMarkdown =
-        /^#{1,6}\s/m.test(trimmed) ||
-        /^[-*+]\s/m.test(trimmed) ||
-        /^\d+\.\s/m.test(trimmed) ||
-        /^\|.+\|$/m.test(trimmed) ||
-        /^>\s/m.test(trimmed) ||
-        trimmed.includes("\n");
+    // Use the explicit filename and extension provided in the marker
+    const spec: DownloadableFileSpec = {
+        extension,
+        filename,
+        language: FILE_LANGUAGE_MAP[extension]?.label ?? extension.toUpperCase(),
+        mimeType: FILE_LANGUAGE_MAP[extension]?.mimeType ?? "text/plain",
+    };
 
-    if (looksLikeMarkdown) {
-        return {
-            spec: buildDownloadableFileSpec("md", trimmed, 0),
-            content: trimmed,
-        };
-    }
-
-    if (trimmed.length >= 120) {
-        return {
-            spec: buildDownloadableFileSpec("txt", trimmed, 0),
-            content: trimmed,
-        };
-    }
-
-    return null;
+    return {
+        spec,
+        content: cleanContent,
+    };
 }
