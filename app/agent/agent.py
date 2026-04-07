@@ -1,7 +1,9 @@
 import argparse
+import asyncio
 import sys
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -45,6 +47,80 @@ def build_agent():
     )
 
 
+def _tool_status_label(tool_name: str | None) -> str:
+    normalized = (tool_name or "").strip().lower().replace("_", " ")
+    if "knowledge" in normalized:
+        return "Searching the knowledge base"
+    if "internet" in normalized or "web" in normalized or "search" in normalized:
+        return "Searching the web"
+    return f"Using {tool_name or 'a tool'}"
+
+
+def _extract_text_from_chunk(chunk: Any) -> str:
+    content = getattr(chunk, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "".join(parts)
+    return ""
+
+
+async def astream_agent_events(
+    query: str | None = None,
+    *,
+    messages: list[dict[str, str]] | None = None,
+) -> AsyncIterator[dict[str, str]]:
+    compiled_query = _build_query_from_messages(messages, query)
+    agent = build_agent()
+
+    yield {"type": "status", "label": "Thinking"}
+    yielded_token = False
+    current_status = "Thinking"
+
+    async for event in agent.astream_events(
+        {"messages": [HumanMessage(content=compiled_query)]},
+        version="v2",
+    ):
+        event_name = str(event.get("event", ""))
+        runnable_name = str(event.get("name", ""))
+        event_data = event.get("data", {}) or {}
+
+        if event_name == "on_tool_start":
+            current_status = _tool_status_label(runnable_name)
+            yield {"type": "status", "label": current_status}
+            continue
+
+        if event_name == "on_tool_end":
+            current_status = "Reasoning over results"
+            yield {"type": "status", "label": current_status}
+            continue
+
+        if event_name == "on_chat_model_start" and not yielded_token:
+            current_status = "Thinking"
+            yield {"type": "status", "label": current_status}
+            continue
+
+        if event_name == "on_chat_model_stream":
+            chunk = event_data.get("chunk")
+            text = _extract_text_from_chunk(chunk)
+            if text:
+                if not yielded_token:
+                    yielded_token = True
+                    current_status = "Drafting answer"
+                    yield {"type": "status", "label": current_status}
+                yield {"type": "token", "text": text}
+            continue
+
+        if event_name == "on_chain_end" and yielded_token:
+            yield {"type": "status", "label": "Finalizing"}
+
+
 def stream_agent_text(
     query: str | None = None,
     *,
@@ -58,6 +134,21 @@ def stream_agent_text(
     ):
         if isinstance(message_chunk, AIMessageChunk) and message_chunk.content:
             yield str(message_chunk.content)
+
+
+def stream_agent_events(
+    query: str | None = None,
+    *,
+    messages: list[dict[str, str]] | None = None,
+) -> Iterator[dict[str, str]]:
+    async def _collect():
+        events: list[dict[str, str]] = []
+        async for event in astream_agent_events(query=query, messages=messages):
+            events.append(event)
+        return events
+
+    for item in asyncio.run(_collect()):
+        yield item
 
 
 def main() -> None:

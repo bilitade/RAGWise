@@ -211,3 +211,313 @@ textarea {
 .soft-shadow {
   box-shadow: none;
 }
+
+.chat-markdown {
+  color: inherit;
+}
+
+.chat-markdown > :first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown p,
+.chat-markdown ul,
+.chat-markdown ol,
+.chat-markdown blockquote,
+.chat-markdown table,
+.chat-markdown pre {
+  margin: 0.55rem 0;
+}
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  margin: 0.8rem 0 0.4rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.chat-markdown h1 {
+  font-size: 1.35rem;
+}
+
+.chat-markdown h2 {
+  font-size: 1.2rem;
+}
+
+.chat-markdown h3 {
+  font-size: 1.05rem;
+}
+
+.chat-markdown ul,
+.chat-markdown ol {
+  padding-left: 1.25rem;
+}
+
+.chat-markdown li + li {
+  margin-top: 0.25rem;
+}
+
+.chat-markdown a {
+  color: var(--data);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.chat-markdown blockquote {
+  border-left: 3px solid color-mix(in srgb, var(--data) 70%, transparent);
+  padding-left: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.chat-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1rem 0;
+}
+
+.chat-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+}
+
+.chat-markdown th,
+.chat-markdown td {
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-markdown th {
+  background: color-mix(in srgb, var(--elevated) 92%, transparent);
+}
+
+.chat-markdown tr:last-child td {
+  border-bottom: 0;
+}
+
+.chat-inline-code {
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  padding: 0.05rem 0.36rem;
+  background: color-mix(in srgb, var(--elevated) 88%, transparent);
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.88em;
+}
+
+.chat-bubble {
+  box-shadow: none;
+}
+
+.chat-message-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.55rem;
+}
+
+.chat-file-card {
+  margin: 0.7rem 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--elevated) 92%, transparent);
+}
+
+.chat-file-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 12%, transparent), transparent),
+    color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.chat-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.chat-file-icon {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: white;
+  flex: none;
+}
+
+.chat-file-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.chat-file-kind {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chat-file-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.42rem 0.7rem;
+  background: color-mix(in srgb, var(--elevated) 80%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  flex: none;
+  font-size: 0.78rem;
+}
+
+.chat-file-preview {
+  margin: 0;
+  padding: 0.85rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.81rem;
+  line-height: 1.55;
+}
+
+.chat-file-preview.chat-markdown {
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.chat-topbar {
+  flex-shrink: 0;
+}
+
+.chat-panels {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.chat-history-panel {
+  overflow: hidden;
+}
+
+.chat-history-list {
+  min-height: 0;
+}
+
+.chat-history-item {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.8rem 0.85rem;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  color: var(--text-primary);
+}
+
+.chat-history-item-active {
+  background: color-mix(in srgb, var(--primary) 22%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 36%, transparent);
+}
+
+.chat-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-transcript {
+  min-height: 0;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+.chat-activity-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.chat-activity-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.chat-activity-pill-active {
+  background: color-mix(in srgb, var(--data) 16%, transparent);
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--data) 32%, transparent);
+}
+
+.chat-composer {
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+  padding-top: 0.75rem;
+  background:
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--elevated) 95%, transparent) 24%),
+    color-mix(in srgb, var(--elevated) 92%, transparent);
+  border-top: 1px solid var(--border);
+}
+
+.chat-composer textarea {
+  resize: none;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .chat-bubble {
+    max-width: 100%;
+  }
+
+  .chat-file-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chat-file-action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .chat-composer {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 1024px) {
+  .chat-panels {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .chat-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-history-panel {
+    min-height: 12rem;
+  }
+}
