@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  FiCheckCircle,
+  FiClock,
+  FiCpu,
   FiDatabase,
+  FiEdit2,
   FiFileText,
+  FiGlobe,
   FiMessageSquare,
   FiMoon,
   FiPlus,
   FiSend,
   FiSun,
+  FiXCircle,
 } from "react-icons/fi";
 
 import type { ChatConversation, ChatMessage, ThemeMode } from "../types";
@@ -14,6 +20,154 @@ import { API_BASE_URL, navigateTo } from "../utils";
 import AssistantMessageBody from "../components/AssistantMessageBody";
 import BrandWordmark from "../components/BrandWordmark";
 
+// ── Status config ────────────────────────────────────────────────────────────
+type StatusConfig = {
+  icon: React.ReactNode;
+  label: string;
+  subtitle: string;
+  color: string;
+  pulse: boolean;
+};
+
+function getStatusConfig(status: string, streaming: boolean): StatusConfig {
+  const s = status.toLowerCase();
+
+  if (s.includes("knowledge") || s.includes("retriev")) {
+    return {
+      icon: <FiDatabase />,
+      label: "Retrieving",
+      subtitle: "Searching the knowledge base",
+      color: "var(--accent)",
+      pulse: true,
+    };
+  }
+  if (s.includes("web") || s.includes("internet") || s.includes("search")) {
+    return {
+      icon: <FiGlobe />,
+      label: "Web Search",
+      subtitle: "Searching the internet for context",
+      color: "var(--data)",
+      pulse: true,
+    };
+  }
+  if (s.includes("reasoning") || s.includes("result")) {
+    return {
+      icon: <FiCpu />,
+      label: "Reasoning",
+      subtitle: "Processing tool results",
+      color: "var(--accent)",
+      pulse: true,
+    };
+  }
+  if (s.includes("draft") || s.includes("writing")) {
+    return {
+      icon: <FiEdit2 />,
+      label: "Drafting",
+      subtitle: "Writing the response",
+      color: "var(--success)",
+      pulse: true,
+    };
+  }
+  if (s.includes("finaliz")) {
+    return {
+      icon: <FiCheckCircle />,
+      label: "Finalizing",
+      subtitle: "Wrapping up the answer",
+      color: "var(--success)",
+      pulse: false,
+    };
+  }
+  if (s.includes("think")) {
+    return {
+      icon: <FiCpu />,
+      label: "Thinking",
+      subtitle: "Deciding what to do next",
+      color: "var(--accent)",
+      pulse: true,
+    };
+  }
+  if (s === "failed") {
+    return {
+      icon: <FiXCircle />,
+      label: "Failed",
+      subtitle: "Something went wrong",
+      color: "var(--error)",
+      pulse: false,
+    };
+  }
+  if (streaming) {
+    return {
+      icon: <FiClock />,
+      label: "Working",
+      subtitle: "Agent is processing",
+      color: "var(--accent)",
+      pulse: true,
+    };
+  }
+  return {
+    icon: <FiCheckCircle />,
+    label: "Ready",
+    subtitle: "Waiting for your message",
+    color: "var(--success)",
+    pulse: false,
+  };
+}
+
+// ── InlineStatusPlaceholder ───────────────────────────────────────────────────
+// Shown inside the last assistant bubble while streaming but content is still empty
+function InlineStatusPlaceholder({
+  status,
+  activity,
+}: {
+  status: string;
+  activity: string[];
+}) {
+  const cfg = getStatusConfig(status, true);
+
+  return (
+    <div className="flex flex-col gap-2 py-0.5">
+      {/* Current status */}
+      <div className="flex items-center gap-2">
+        {/* Pulsing dot */}
+        <span
+          className="agent-status-dot shrink-0"
+          style={{
+            background: cfg.color,
+            animation: cfg.pulse ? "status-pulse 1.4s ease-in-out infinite" : "none",
+          }}
+        />
+        {/* Icon */}
+        <span className="shrink-0 text-sm" style={{ color: cfg.color }}>
+          {cfg.icon}
+        </span>
+        {/* Label + subtitle */}
+        <span className="text-xs font-semibold" style={{ color: cfg.color }}>
+          {cfg.label}
+        </span>
+        <span className="text-xs text-muted">{cfg.subtitle}</span>
+      </div>
+
+      {/* Activity trail — previous steps */}
+      {activity.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {activity.slice(0, -1).map((step, i) => (
+            <span
+              key={`${step}-${i}`}
+              className="rounded-full px-2 py-0.5 text-[10px] text-muted"
+              style={{ background: "var(--surface)" }}
+            >
+              {step}
+            </span>
+          ))}
+          <span className="text-[10px] text-muted">→ {activity[activity.length - 1]}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ── Chat page ────────────────────────────────────────────────────────────────
 export default function Chat({
   theme,
   setTheme,
@@ -132,7 +286,11 @@ export default function Chat({
 
           if (event === "status" && payload.label) {
             setChatStatus(payload.label);
-            setChatActivity((current) => (current[current.length - 1] === payload.label ? current : [...current, payload.label]));
+            setChatActivity((current) =>
+              current[current.length - 1] === payload.label
+                ? current
+                : [...current, payload.label],
+            );
           }
 
           if (event === "error" && payload.error) {
@@ -209,11 +367,14 @@ export default function Chat({
       </header>
 
       <div className="chat-panels grid min-h-0 flex-1 gap-3">
+        {/* Conversation sidebar */}
         <aside className="brand-card chat-history-panel flex min-h-0 flex-col rounded-[22px] p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-medium">Chats</div>
-              <div className="text-xs text-secondary">{conversations.length} conversation{conversations.length === 1 ? "" : "s"}</div>
+              <div className="text-xs text-secondary">
+                {conversations.length} conversation{conversations.length === 1 ? "" : "s"}
+              </div>
             </div>
           </div>
 
@@ -237,6 +398,7 @@ export default function Chat({
           </div>
         </aside>
 
+        {/* Main chat panel */}
         <div className="brand-card flex min-h-0 flex-col overflow-hidden rounded-[22px] p-3 sm:p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -244,30 +406,16 @@ export default function Chat({
               <p className="text-xs text-secondary">Streaming assistant interface for grounded answers.</p>
             </div>
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted">
-              {chatStreaming ? <span className="status-data">Streaming</span> : `${chatMessages.length} message${chatMessages.length === 1 ? "" : "s"}`}
+              {chatStreaming
+                ? <span className="status-data">Streaming</span>
+                : `${chatMessages.length} message${chatMessages.length === 1 ? "" : "s"}`}
             </div>
           </div>
 
-        <div className="brand-elevated chat-shell flex min-h-0 flex-1 flex-col rounded-[20px] p-3">
-          <div className="mb-2.5 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.14em] text-muted">
-            <div className="flex items-center gap-2">
-              <FiDatabase className="status-data" />
-              Live conversation
-            </div>
-            <div className={chatStreaming ? "status-data" : "text-muted"}>{chatStatus}</div>
-          </div>
 
-          {chatActivity.length ? (
-            <div className="chat-activity-strip mb-2.5">
-              {chatActivity.slice(-4).map((item, index) => (
-                <span key={`${item}-${index}`} className={`chat-activity-pill ${index === chatActivity.slice(-4).length - 1 ? "chat-activity-pill-active" : ""}`}>
-                  {item}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          <div ref={transcriptRef} className="chat-transcript flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
+          <div className="brand-elevated chat-shell flex min-h-0 flex-1 flex-col rounded-[20px] p-3">
+            {/* ── Transcript ── */}
+            <div ref={transcriptRef} className="chat-transcript flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
               {chatMessages.length ? (
                 chatMessages.map((message, index) => (
                   <div
@@ -277,20 +425,30 @@ export default function Chat({
                     }`}
                   >
                     {message.role === "assistant" ? (
-                      <AssistantMessageBody content={message.content || (chatStreaming && index === chatMessages.length - 1 ? "..." : "")} />
+                      /* Show inline status placeholder when streaming and no content yet */
+                      chatStreaming && index === chatMessages.length - 1 && !message.content ? (
+                        <InlineStatusPlaceholder
+                          status={chatStatus}
+                          activity={chatActivity}
+                        />
+                      ) : (
+                        <AssistantMessageBody content={message.content} />
+                      )
                     ) : (
-                      <div className="whitespace-pre-wrap">{message.content || (chatStreaming && index === chatMessages.length - 1 ? "..." : "")}</div>
+                      <div className="whitespace-pre-wrap">{message.content}</div>
                     )}
                   </div>
                 ))
               ) : (
                 <div className="m-auto max-w-md text-center text-sm leading-6 text-secondary">
-                  Start a conversation about company policy, banking FAQ, internal procedures, or current public information.
+                  Start a conversation about company policy, banking FAQ, internal procedures, or
+                  current public information.
                 </div>
               )}
               <div ref={bottomAnchorRef} />
             </div>
 
+            {/* ── Composer ── */}
             <div className="chat-composer mt-2.5 flex gap-2">
               <textarea
                 value={chatInput}
