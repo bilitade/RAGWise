@@ -1,0 +1,64 @@
+export type ThemeMode = "dark" | "light";
+export type RetrievalMode = "similarity" | "bm25" | "advanced";
+export type AppRoute = "/" | "/documents" | "/chat";
+export type DocumentsTab = "files" | "ingestion" | "search";
+
+export type Stage = {
+    name: string;
+    status: string;
+    progress: number;
+    message: string;
+    details: Record<string, unknown>;
+};
+
+export type IngestionJob = {
+    task_id: string;
+    status: string;
+    successful: boolean;
+    failed: boolean;
+    stage?: Stage | null;
+    stage_history?: Stage[];
+    result?: Record<string, unknown> | null;
+    error?: string | null;
+};
+
+export type ManagedDocument = {
+    document_id: string;
+    filename: string;
+    relative_path: string;
+    absolute_path: string;
+    size_bytes: number;
+    modified_at: string;
+    indexed: boolean;
+    needs_reindex: boolean;
+    status: string;
+    indexed_at?: string | null;
+};
+
+export type RetrievalResult = {
+    node_id: string;
+    score: number;
+    text: string;
+    metadata: Record<string, unknown>;
+    source: string;
+    matched_by: string[];
+};
+
+export type ChatMessage = {
+    role: "user" | "assistant";
+    content: string;
+};
+
+export type ChatConversation = {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    updatedAt: number;
+};
+
+export type DownloadableFileSpec = {
+    extension: string;
+    filename: string;
+    language: string;
+    mimeType: string;
+};
