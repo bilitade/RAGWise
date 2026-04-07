@@ -9,8 +9,11 @@ import {
   FiGlobe,
   FiMessageSquare,
   FiMoon,
+  FiMic,
+  FiMicOff,
   FiPlus,
   FiSend,
+  FiSquare,
   FiSun,
   FiXCircle,
 } from "react-icons/fi";
@@ -37,7 +40,7 @@ function getStatusConfig(status: string, streaming: boolean): StatusConfig {
       icon: <FiDatabase />,
       label: "Retrieving",
       subtitle: "Searching the knowledge base",
-      color: "var(--accent)",
+      color: "var(--primary)",
       pulse: true,
     };
   }
@@ -55,7 +58,7 @@ function getStatusConfig(status: string, streaming: boolean): StatusConfig {
       icon: <FiCpu />,
       label: "Reasoning",
       subtitle: "Processing tool results",
-      color: "var(--accent)",
+      color: "var(--primary)",
       pulse: true,
     };
   }
@@ -82,7 +85,7 @@ function getStatusConfig(status: string, streaming: boolean): StatusConfig {
       icon: <FiCpu />,
       label: "Thinking",
       subtitle: "Deciding what to do next",
-      color: "var(--accent)",
+      color: "var(--primary)",
       pulse: true,
     };
   }
@@ -147,21 +150,7 @@ function InlineStatusPlaceholder({
         <span className="text-xs text-muted">{cfg.subtitle}</span>
       </div>
 
-      {/* Activity trail — previous steps */}
-      {activity.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1">
-          {activity.slice(0, -1).map((step, i) => (
-            <span
-              key={`${step}-${i}`}
-              className="rounded-full px-2 py-0.5 text-[10px] text-muted"
-              style={{ background: "var(--surface)" }}
-            >
-              {step}
-            </span>
-          ))}
-          <span className="text-[10px] text-muted">→ {activity[activity.length - 1]}</span>
-        </div>
-      )}
+      {/* Only show the current status cfg, no trail */}
     </div>
   );
 }
@@ -188,6 +177,8 @@ export default function Chat({
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatStatus, setChatStatus] = useState("Ready");
   const [chatActivity, setChatActivity] = useState<string[]>([]);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const bottomAnchorRef = useRef<HTMLDivElement | null>(null);
   const activeConversation = useMemo(
@@ -324,6 +315,44 @@ export default function Chat({
     }
   }
 
+  function toggleVoiceInput() {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript) {
+        setChatInput((prev) => (prev ? `${prev} ${finalTranscript}` : finalTranscript));
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
   return (
     <section className="chat-workspace mx-auto flex h-[calc(100vh-5.5rem)] min-h-[36rem] w-full max-w-7xl flex-col gap-3">
       <header className="brand-card chat-topbar flex items-center justify-between gap-3 rounded-[22px] px-4 py-3">
@@ -452,24 +481,32 @@ export default function Chat({
             </div>
 
             {/* ── Composer ── */}
-            <div className="chat-composer mt-2.5 flex gap-2">
+            <div className="chat-composer mt-3 flex items-end gap-2.5">
+              <button
+                type="button"
+                onClick={toggleVoiceInput}
+                className={`chat-composer-voice-btn ${isListening ? "is-listening" : ""}`}
+                title={isListening ? "Stop listening" : "Start voice input"}
+              >
+                {isListening ? <FiSquare size={18} /> : <FiMic size={20} />}
+              </button>
+
               <textarea
                 value={chatInput}
                 onChange={(event) => setChatInput(event.target.value)}
                 onKeyDown={handleChatInputKeyDown}
-                placeholder="Ask the agent anything relevant to the bank or current public context."
-                rows={2}
-                className="surface-input min-h-[56px] max-h-32 flex-1 rounded-[18px] px-3 py-2.5 text-[13px]"
+                placeholder={isListening ? "Listening..." : "Ask the agent anything..."}
+                rows={1}
+                className="surface-input min-h-[44px] max-h-32 flex-1 items-center rounded-[14px] px-3.5 py-2.5 text-[13px] leading-relaxed"
               />
+
               <button
                 onClick={handleChatSubmit}
                 disabled={chatStreaming || !chatInput.trim()}
-                className="brand-gradient self-end rounded-[16px] px-3.5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                className="chat-send-btn h-[44px]"
               >
-                <span className="flex items-center gap-2">
-                  <FiSend />
-                  Send
-                </span>
+                <FiSend size={16} />
+                <span className="hidden sm:inline">Send</span>
               </button>
             </div>
           </div>

@@ -37,9 +37,14 @@ export default function AssistantMessageBody({
     return false;
   }, [displayContent, content]);
 
+  // Determine if we should show the top-level suggested document card.
+  // We only show it if there ARE NO internal code blocks and no "raw JSON" wrapped.
+  const hasInternalCodeBlocks = content.includes("```");
+  const showSuggestedDocument = !!downloadableMessage && !hasInternalCodeBlocks && !isRawJson;
+
   return (
     <div className="chat-markdown">
-      {downloadableMessage ? (
+      {showSuggestedDocument ? (
         <div className="chat-artifact-suggestion brand-elevated mb-4 flex items-center justify-between gap-4 rounded-2xl p-3.5">
           <div className="flex items-center gap-3 min-w-0">
             <div className="chat-artifact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl brand-gradient text-white">
