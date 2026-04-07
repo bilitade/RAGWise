@@ -148,13 +148,48 @@ def _run_status() -> None:
     print(json.dumps(status, indent=2))
 
 
+def _default_task_stage(task_id: str, status: str) -> dict:
+    normalized_status = status.upper()
+    if normalized_status == "PENDING":
+        return {
+            "name": "queued",
+            "status": "pending",
+            "progress": 0,
+            "message": "Job is queued and waiting for a worker.",
+            "details": {"task_id": task_id},
+        }
+    if normalized_status == "STARTED":
+        return {
+            "name": "queued",
+            "status": "running",
+            "progress": 1,
+            "message": "Worker accepted the job and is preparing ingestion.",
+            "details": {"task_id": task_id},
+        }
+    if normalized_status == "SUCCESS":
+        return {
+            "name": "completed",
+            "status": "completed",
+            "progress": 100,
+            "message": "Job completed successfully.",
+            "details": {"task_id": task_id},
+        }
+    return {
+        "name": "failed",
+        "status": "failed",
+        "progress": 100,
+        "message": "Job failed.",
+        "details": {"task_id": task_id},
+    }
+
+
 def _run_task_status(args: argparse.Namespace) -> None:
     task = get_task_result(args.task_id)
-    stage = None
-    stage_history = None
+    stage = _default_task_stage(task.id, task.status)
+    stage_history = [stage]
     if isinstance(task.info, dict):
-        stage = task.info.get("stage")
-        stage_history = task.info.get("stage_history")
+        stage = task.info.get("stage") or stage
+        stage_history = task.info.get("stage_history") or stage_history
     print(
         json.dumps(
             {
@@ -176,9 +211,13 @@ def _run_task_result(args: argparse.Namespace) -> None:
         "task_id": task.id,
         "status": task.status,
     }
+    stage = _default_task_stage(task.id, task.status)
+    stage_history = [stage]
     if isinstance(task.info, dict):
-        payload["stage"] = task.info.get("stage")
-        payload["stage_history"] = task.info.get("stage_history")
+        stage = task.info.get("stage") or stage
+        stage_history = task.info.get("stage_history") or stage_history
+    payload["stage"] = stage
+    payload["stage_history"] = stage_history
     if task.successful():
         payload["result"] = task.result
     elif task.failed():

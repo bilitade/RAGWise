@@ -16,6 +16,7 @@ import {
 type ThemeMode = "dark" | "light";
 type RetrievalMode = "similarity" | "bm25" | "advanced";
 type AppRoute = "/" | "/documents" | "/chat";
+type DocumentsTab = "files" | "ingestion" | "search";
 
 type Stage = {
   name: string;
@@ -64,6 +65,80 @@ type ChatMessage = {
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const INGESTION_STEPS = [
+  { name: "queued", label: "Queued" },
+  { name: "upload_received", label: "Upload received" },
+  { name: "discovering_files", label: "Discovering files" },
+  { name: "loading_documents", label: "Loading documents" },
+  { name: "chunking_documents", label: "Chunking documents" },
+  { name: "preparing_vector_store", label: "Preparing vector store" },
+  { name: "embedding_and_indexing", label: "Embedding and indexing" },
+  { name: "persisting_bm25_cache", label: "Persisting BM25 cache" },
+  { name: "completed", label: "Completed" },
+] as const;
+
+function getStepLabel(stepName: string | null | undefined): string {
+  return INGESTION_STEPS.find((step) => step.name === stepName)?.label ?? "Idle";
+}
+
+function getJobSummary(job: IngestionJob | null): {
+  title: string;
+  detail: string;
+  status: string;
+  progress: number;
+  nextLabel: string;
+} {
+  if (!job) {
+    return {
+      title: "No active ingestion job",
+      detail: "Queue an ingestion job to start processing documents.",
+      status: "idle",
+      progress: 0,
+      nextLabel: "Waiting to start",
+    };
+  }
+
+  if (job.failed) {
+    return {
+      title: "Ingestion failed",
+      detail: job.error ?? job.stage?.message ?? "The ingestion job failed.",
+      status: "failed",
+      progress: 100,
+      nextLabel: "Review the error and retry",
+    };
+  }
+
+  if (job.successful) {
+    return {
+      title: "Ingestion completed",
+      detail: job.stage?.message ?? "The ingestion workflow completed successfully.",
+      status: "completed",
+      progress: 100,
+      nextLabel: "Knowledge base is up to date",
+    };
+  }
+
+  if (job.stage) {
+    const stepIndex = INGESTION_STEPS.findIndex((step) => step.name === job.stage?.name);
+    return {
+      title: getStepLabel(job.stage.name),
+      detail: job.stage.message,
+      status: job.stage.status,
+      progress: job.stage.progress,
+      nextLabel: stepIndex >= 0 && stepIndex < INGESTION_STEPS.length - 1
+        ? `Next: ${INGESTION_STEPS[stepIndex + 1].label}`
+        : "Processing",
+    };
+  }
+
+  return {
+    title: "Ingestion queued",
+    detail: "The job is waiting for a worker to start processing.",
+    status: "pending",
+    progress: 0,
+    nextLabel: "Next: Queued",
+  };
+}
 
 function getCurrentRoute(): AppRoute {
   if (window.location.pathname === "/chat") return "/chat";
@@ -216,7 +291,13 @@ function LandingView() {
   );
 }
 
-function DocumentsView() {
+function DocumentsView({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: DocumentsTab;
+  onTabChange: (tab: DocumentsTab) => void;
+}) {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [documents, setDocuments] = useState<ManagedDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
@@ -224,6 +305,8 @@ function DocumentsView() {
   const [uploadingAndIngesting, setUploadingAndIngesting] = useState(false);
   const [bulkIngesting, setBulkIngesting] = useState(false);
   const [activeJob, setActiveJob] = useState<IngestionJob | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("similarity");
   const [retrievalQuery, setRetrievalQuery] = useState("");
   const [retrievalLoading, setRetrievalLoading] = useState(false);
@@ -244,6 +327,14 @@ function DocumentsView() {
         );
         setActiveJob(nextStatus);
         if (nextStatus.successful || nextStatus.failed) {
+          if (nextStatus.successful) {
+            setActionMessage("Ingestion job completed.");
+            setActionError(null);
+          }
+          if (nextStatus.failed) {
+            setActionError(nextStatus.error ?? "Ingestion job failed.");
+            setActionMessage(null);
+          }
           await loadDocuments();
         }
       } catch {
@@ -255,8 +346,7 @@ function DocumentsView() {
   }, [activeJob]);
 
   const activeStage = activeJob?.stage;
-  const stageHistory = useMemo(() => activeJob?.stage_history ?? [], [activeJob]);
-  const currentProgress = activeStage?.progress ?? 0;
+  const jobSummary = getJobSummary(activeJob);
 
   async function loadDocuments() {
     setDocumentsLoading(true);
@@ -273,12 +363,19 @@ function DocumentsView() {
     const formData = new FormData();
     Array.from(selectedFiles).forEach((file) => formData.append("files", file));
     setUploading(true);
+    setActionError(null);
+    setActionMessage(null);
     try {
       await fetchJson(`${API_BASE_URL}/api/documents/upload`, {
         method: "POST",
         body: formData,
       });
       await loadDocuments();
+      setSelectedFiles(null);
+      setActionMessage("Files uploaded successfully.");
+      onTabChange("files");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Upload failed.");
     } finally {
       setUploading(false);
     }
@@ -289,6 +386,8 @@ function DocumentsView() {
     const formData = new FormData();
     formData.append("file", selectedFiles[0]);
     setUploadingAndIngesting(true);
+    setActionError(null);
+    setActionMessage(null);
     try {
       const job = await fetchJson<{ task_id: string; status: string }>(
         `${API_BASE_URL}/api/documents/upload-and-ingest`,
@@ -304,7 +403,12 @@ function DocumentsView() {
         failed: false,
         stage_history: [],
       });
+      onTabChange("ingestion");
+      setSelectedFiles(null);
+      setActionMessage("Upload accepted. Ingestion job started.");
       await loadDocuments();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Upload and ingestion failed.");
     } finally {
       setUploadingAndIngesting(false);
     }
@@ -312,6 +416,8 @@ function DocumentsView() {
 
   async function handleIngestAll() {
     setBulkIngesting(true);
+    setActionError(null);
+    setActionMessage(null);
     try {
       const job = await fetchJson<{ task_id: string; status: string }>(
         `${API_BASE_URL}/api/documents/ingest-all`,
@@ -324,28 +430,47 @@ function DocumentsView() {
         failed: false,
         stage_history: [],
       });
+      onTabChange("ingestion");
+      setActionMessage("Reingestion job started.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Reingestion failed to start.");
     } finally {
       setBulkIngesting(false);
     }
   }
 
   async function handleDelete(documentId: string) {
-    await fetchJson(`${API_BASE_URL}/api/documents/${documentId}`, { method: "DELETE" });
-    await loadDocuments();
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      await fetchJson(`${API_BASE_URL}/api/documents/${documentId}`, { method: "DELETE" });
+      await loadDocuments();
+      setActionMessage("Document deleted.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Delete failed.");
+    }
   }
 
   async function handleReindex(documentId: string) {
-    const job = await fetchJson<{ task_id: string; status: string }>(
-      `${API_BASE_URL}/api/documents/${documentId}/reindex`,
-      { method: "POST" },
-    );
-    setActiveJob({
-      task_id: job.task_id,
-      status: job.status,
-      successful: false,
-      failed: false,
-      stage_history: [],
-    });
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const job = await fetchJson<{ task_id: string; status: string }>(
+        `${API_BASE_URL}/api/documents/${documentId}/reindex`,
+        { method: "POST" },
+      );
+      setActiveJob({
+        task_id: job.task_id,
+        status: job.status,
+        successful: false,
+        failed: false,
+        stage_history: [],
+      });
+      onTabChange("ingestion");
+      setActionMessage("Reindex job started.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Reindex failed to start.");
+    }
   }
 
   async function handleRetrieval() {
@@ -368,20 +493,94 @@ function DocumentsView() {
     }
   }
 
-  return (
-    <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+  const filesSection = (
+    <section className="brand-card rounded-[28px] p-5 sm:p-6">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="brand-elevated rounded-2xl p-3">
+          <FiFileText className="text-lg status-data" />
+        </div>
+        <div>
+          <h2 className="text-xl font-medium">Files</h2>
+          <p className="text-sm text-secondary">List existing files and manage delete or reindex operations.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {documentsLoading ? (
+          <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">Loading documents...</div>
+        ) : documents.length ? (
+          documents.map((document) => (
+            <div key={document.document_id} className="brand-elevated rounded-3xl p-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-sm font-medium">{document.filename}</h3>
+                    <span className={`text-xs uppercase tracking-[0.18em] ${getDocumentBadge(document)}`}>
+                      {document.status}
+                    </span>
+                  </div>
+                  <p className="mt-2 break-all text-xs text-muted">{document.relative_path}</p>
+                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-secondary">
+                    <span>{formatBytes(document.size_bytes)}</span>
+                    <span>Modified {formatDate(document.modified_at)}</span>
+                    <span>Indexed {formatDate(document.indexed_at)}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => void handleReindex(document.document_id)}
+                    className="brand-secondary rounded-2xl px-3 py-2 text-xs font-medium"
+                  >
+                    <span className="flex items-center gap-2">
+                      <FiRefreshCw />
+                      Reindex
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => void handleDelete(document.document_id)}
+                    className="rounded-2xl border px-3 py-2 text-xs font-medium"
+                    style={{ color: "var(--error)", borderColor: "var(--border)" }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <FiTrash2 />
+                      Delete
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">
+            No documents are available yet. Upload a file to begin.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+
+  const ingestionSection = (
+    <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
       <section className="brand-card rounded-[28px] p-5 sm:p-6">
         <div className="mb-5 flex items-center gap-3">
           <div className="brand-elevated rounded-2xl p-3">
             <FiUploadCloud className="text-lg status-data" />
           </div>
           <div>
-            <h2 className="text-xl font-medium">Document Manager</h2>
-            <p className="text-sm text-secondary">Upload, ingest, reindex, delete, and inspect stored files.</p>
+            <h2 className="text-xl font-medium">Ingestion</h2>
+            <p className="text-sm text-secondary">Upload files, ingest a single file, or reingest existing documents.</p>
           </div>
         </div>
 
         <div className="flex flex-col gap-4">
+          {actionMessage ? (
+            <div className="brand-elevated rounded-2xl px-4 py-3 text-sm status-success">{actionMessage}</div>
+          ) : null}
+          {actionError ? (
+            <div className="brand-elevated rounded-2xl px-4 py-3 text-sm status-error">{actionError}</div>
+          ) : null}
+
           <input
             type="file"
             multiple
@@ -409,189 +608,129 @@ function DocumentsView() {
               disabled={bulkIngesting}
               className="brand-primary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {bulkIngesting ? "Queueing..." : "Reload and ingest all"}
+              {bulkIngesting ? "Queueing..." : "Reingest all"}
             </button>
-          </div>
-
-          <div className="grid gap-3">
-            {documentsLoading ? (
-              <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">Loading documents...</div>
-            ) : documents.length ? (
-              documents.map((document) => (
-                <div key={document.document_id} className="brand-elevated rounded-3xl p-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="text-sm font-medium">{document.filename}</h3>
-                        <span className={`text-xs uppercase tracking-[0.18em] ${getDocumentBadge(document)}`}>
-                          {document.status}
-                        </span>
-                      </div>
-                      <p className="mt-2 break-all text-xs text-muted">{document.relative_path}</p>
-                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-secondary">
-                        <span>{formatBytes(document.size_bytes)}</span>
-                        <span>Modified {formatDate(document.modified_at)}</span>
-                        <span>Indexed {formatDate(document.indexed_at)}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => void handleReindex(document.document_id)}
-                        className="brand-secondary rounded-2xl px-3 py-2 text-xs font-medium"
-                      >
-                        <span className="flex items-center gap-2">
-                          <FiRefreshCw />
-                          Reindex
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => void handleDelete(document.document_id)}
-                        className="rounded-2xl border px-3 py-2 text-xs font-medium"
-                        style={{ color: "var(--error)", borderColor: "var(--border)" }}
-                      >
-                        <span className="flex items-center gap-2">
-                          <FiTrash2 />
-                          Delete
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">
-                No documents are available yet. Upload a file to begin.
-              </div>
-            )}
           </div>
         </div>
       </section>
 
-      <section className="flex flex-col gap-6">
-        <div className="brand-card rounded-[28px] p-5 sm:p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="brand-elevated rounded-2xl p-3">
-              <FiActivity className="text-lg status-success" />
-            </div>
-            <div>
-              <h2 className="text-xl font-medium">Ingestion Jobs</h2>
-              <p className="text-sm text-secondary">Track chunking, embeddings, and indexing progress.</p>
-            </div>
+      <section className="brand-card rounded-[28px] p-5 sm:p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="brand-elevated rounded-2xl p-3">
+            <FiActivity className="text-lg status-success" />
           </div>
-
-          <div className="flex flex-col gap-4">
-            <div className="brand-elevated rounded-[28px] p-4">
-              <div className="mb-3 flex items-center justify-between gap-4">
-                <div>
-                  <div className={`text-sm font-medium ${getStatusClass(activeStage)}`}>
-                    {activeStage?.message ?? "No active ingestion job"}
-                  </div>
-                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">
-                    {activeStage ? formatStageName(activeStage.name) : "idle"}
-                  </div>
-                </div>
-                <div className="text-sm text-secondary">{currentProgress}%</div>
-              </div>
-              <div className="progress-track h-2 rounded-full">
-                <div className="progress-fill h-2 rounded-full transition-all" style={{ width: `${currentProgress}%` }} />
-              </div>
-              {activeJob?.task_id ? <div className="mt-3 text-xs text-muted">Job ID {activeJob.task_id}</div> : null}
-            </div>
-
-            <div className="grid gap-3">
-              {stageHistory.length ? (
-                stageHistory.map((stage, index) => (
-                  <div key={`${stage.name}-${index}`} className="brand-elevated rounded-3xl px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-medium capitalize">{formatStageName(stage.name)}</div>
-                      <div className={`text-xs uppercase tracking-[0.18em] ${getStatusClass(stage)}`}>
-                        {stage.status}
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-secondary">{stage.message}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">
-                  Job history will appear here after you queue a document operation.
-                </div>
-              )}
-            </div>
+          <div>
+            <h2 className="text-xl font-medium">Ingestion jobs</h2>
+            <p className="text-sm text-secondary">Track chunking, embeddings, and indexing progress.</p>
           </div>
         </div>
 
-        <div className="brand-card rounded-[28px] p-5 sm:p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="brand-elevated rounded-2xl p-3">
-              <FiSearch className="text-lg status-data" />
+        <div className="flex flex-col gap-4">
+          <div className="brand-elevated rounded-[28px] p-4">
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <div>
+                <div className={`text-sm font-medium ${getStatusClass(activeStage)}`}>
+                  {jobSummary.title}
+                </div>
+                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">{jobSummary.status}</div>
+              </div>
+              <div className="text-sm text-secondary">{jobSummary.progress}%</div>
             </div>
-            <div>
-              <h2 className="text-xl font-medium">Search</h2>
-              <p className="text-sm text-secondary">Run similarity, BM25, or advanced fused retrieval.</p>
+            <div className="progress-track h-2 rounded-full">
+              <div className="progress-fill h-2 rounded-full transition-all" style={{ width: `${jobSummary.progress}%` }} />
             </div>
+            {activeJob?.task_id ? <div className="mt-3 text-xs text-muted">Job ID {activeJob.task_id}</div> : null}
+            {activeJob?.failed && activeJob.error ? <div className="mt-3 text-sm status-error">{activeJob.error}</div> : null}
           </div>
 
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap gap-2">
-              {(["similarity", "bm25", "advanced"] as RetrievalMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setRetrievalMode(mode)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium ${
-                    retrievalMode === mode ? "brand-pill-active" : "brand-pill"
-                  }`}
-                >
-                  {mode === "bm25" ? "BM25" : mode === "advanced" ? "Advanced" : "Similarity"}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input
-                value={retrievalQuery}
-                onChange={(event) => setRetrievalQuery(event.target.value)}
-                placeholder="Search policies, products, FAQs, or procedures"
-                className="surface-input min-w-0 flex-1 rounded-3xl px-4 py-4 text-sm"
-              />
-              <button
-                onClick={handleRetrieval}
-                disabled={retrievalLoading}
-                className="brand-primary rounded-2xl px-5 py-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {retrievalLoading ? "Searching..." : "Search"}
-              </button>
-            </div>
-
-            <div className="grid gap-3">
-              {retrievalResults.length ? (
-                retrievalResults.map((result) => (
-                  <div key={result.node_id} className="brand-elevated rounded-3xl p-4">
-                    <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-muted">
-                      <span>{String(result.metadata.filename ?? result.source)}</span>
-                      <span className="status-data">{result.score.toFixed(4)}</span>
-                    </div>
-                    <p className="mt-3 text-sm leading-7">{result.text}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {result.matched_by.map((item) => (
-                        <span key={`${result.node_id}-${item}`} className="brand-pill rounded-full px-3 py-1 text-xs">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">
-                  Search results will appear here once the knowledge base has indexed content.
-                </div>
-              )}
+          <div className="brand-elevated rounded-[28px] px-4 py-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-muted">Current step</div>
+            <div className="mt-2 text-lg font-medium">{jobSummary.title}</div>
+            <p className="mt-2 text-sm leading-6 text-secondary">{jobSummary.detail}</p>
+            <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+              <span className="text-secondary">{jobSummary.nextLabel}</span>
+              <span className={getStatusClass(activeStage)}>{jobSummary.status}</span>
             </div>
           </div>
         </div>
       </section>
     </div>
   );
+
+  const searchSection = (
+    <section className="brand-card rounded-[28px] p-5 sm:p-6">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="brand-elevated rounded-2xl p-3">
+          <FiSearch className="text-lg status-data" />
+        </div>
+        <div>
+          <h2 className="text-xl font-medium">Search</h2>
+          <p className="text-sm text-secondary">Run similarity, BM25, or hybrid retrieval.</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-2">
+          {(["similarity", "bm25", "advanced"] as RetrievalMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setRetrievalMode(mode)}
+              className={`rounded-full px-4 py-2 text-sm font-medium ${
+                retrievalMode === mode ? "brand-pill-active" : "brand-pill"
+              }`}
+            >
+              {mode === "bm25" ? "BM25" : mode === "advanced" ? "Hybrid" : "Similarity"}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            value={retrievalQuery}
+            onChange={(event) => setRetrievalQuery(event.target.value)}
+            placeholder="Search policies, products, FAQs, or procedures"
+            className="surface-input min-w-0 flex-1 rounded-3xl px-4 py-4 text-sm"
+          />
+          <button
+            onClick={handleRetrieval}
+            disabled={retrievalLoading}
+            className="brand-primary rounded-2xl px-5 py-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {retrievalLoading ? "Searching..." : "Search"}
+          </button>
+        </div>
+
+        <div className="grid gap-3">
+          {retrievalResults.length ? (
+            retrievalResults.map((result) => (
+              <div key={result.node_id} className="brand-elevated rounded-3xl p-4">
+                <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-muted">
+                  <span>{String(result.metadata.filename ?? result.source)}</span>
+                  <span className="status-data">{result.score.toFixed(4)}</span>
+                </div>
+                <p className="mt-3 text-sm leading-7">{result.text}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {result.matched_by.map((item) => (
+                    <span key={`${result.node_id}-${item}`} className="brand-pill rounded-full px-3 py-1 text-xs">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">
+              Search results will appear here once the knowledge base has indexed content.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+
+  if (activeTab === "files") return filesSection;
+  if (activeTab === "ingestion") return ingestionSection;
+  return searchSection;
 }
 
 function ChatView() {
@@ -732,6 +871,7 @@ function ChatView() {
 export default function App() {
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute());
+  const [documentsTab, setDocumentsTab] = useState<DocumentsTab>("files");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -778,37 +918,55 @@ export default function App() {
                   </div>
                   <div>
                     <BrandWordmark />
-                    <div className="text-sm text-secondary">
-                      {route === "/documents" ? "Document operations" : "Agent chat"}
-                    </div>
+                    <div className="text-sm text-secondary">{route === "/documents" ? "Workspace" : "Agent chat"}</div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => navigateTo("/")}
-                    className={`rounded-2xl px-4 py-2.5 text-sm font-medium ${
-                      route === "/" ? "brand-pill-active" : "brand-pill"
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <FiDatabase />
-                      Home
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => navigateTo("/documents")}
-                    className={`rounded-2xl px-4 py-2.5 text-sm font-medium ${
-                      route === "/documents" ? "brand-pill-active" : "brand-pill"
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <FiFileText />
-                      Documents
-                    </span>
-                  </button>
-                  <button
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        navigateTo("/documents");
+                        setDocumentsTab("files");
+                      }}
+                      className={`rounded-2xl px-4 py-2.5 text-sm font-medium ${
+                        route === "/documents" && documentsTab === "files" ? "brand-pill-active" : "brand-pill"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FiFileText />
+                        Files
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigateTo("/documents");
+                        setDocumentsTab("ingestion");
+                      }}
+                      className={`rounded-2xl px-4 py-2.5 text-sm font-medium ${
+                        route === "/documents" && documentsTab === "ingestion" ? "brand-pill-active" : "brand-pill"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FiUploadCloud />
+                        Ingestion
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigateTo("/documents");
+                        setDocumentsTab("search");
+                      }}
+                      className={`rounded-2xl px-4 py-2.5 text-sm font-medium ${
+                        route === "/documents" && documentsTab === "search" ? "brand-pill-active" : "brand-pill"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FiSearch />
+                        Search
+                      </span>
+                    </button>
+                    <button
                     onClick={() => navigateTo("/chat")}
                     className={`rounded-2xl px-4 py-2.5 text-sm font-medium ${
                       route === "/chat" ? "brand-pill-active" : "brand-pill"
@@ -840,7 +998,11 @@ export default function App() {
               </div>
             </header>
 
-            {route === "/documents" ? <DocumentsView /> : <ChatView />}
+            {route === "/documents" ? (
+              <DocumentsView activeTab={documentsTab} onTabChange={setDocumentsTab} />
+            ) : (
+              <ChatView />
+            )}
           </>
         )}
       </div>

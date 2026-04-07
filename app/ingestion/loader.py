@@ -2,13 +2,14 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Callable, Literal
 
 from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.schema import Document
 from llama_index.embeddings.openai import OpenAIEmbedding
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import (
     BM25_CACHE_PATH,
@@ -43,7 +44,7 @@ class IngestionStage(BaseModel):
     status: IngestionStageStatus
     progress: int
     message: str
-    details: dict[str, Any] = {}
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class IngestionResult(BaseModel):
@@ -94,6 +95,13 @@ def _extract_node_text(node: Any) -> str:
     return node.get_content()
 
 
+def _normalize_document_text(text: str) -> str:
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def build_document_id(file_path: str | Path) -> str:
     path = Path(file_path).resolve()
     try:
@@ -117,6 +125,49 @@ def list_source_files(input_dir: str | Path | None = None) -> list[Path]:
     return sorted(path for path in source_dir.rglob("*") if path.is_file())
 
 
+def _build_file_extractors(file_paths: list[Path]) -> dict[str, Any]:
+    suffixes = {path.suffix.lower() for path in file_paths}
+    if not suffixes:
+        return {}
+
+    try:
+        from llama_index.readers.file import DocxReader, EpubReader, MarkdownReader, PptxReader, PyMuPDFReader
+    except ImportError as exc:
+        raise RuntimeError(
+            "Specialized file readers are not installed. "
+            "Add `llama-index-readers-file` to enable PDF, EPUB, PPTX, DOCX, and Markdown parsing."
+        ) from exc
+
+    extractors: dict[str, Any] = {}
+
+    if ".pdf" in suffixes:
+        try:
+            import fitz  # noqa: F401
+        except ImportError as exc:
+            raise RuntimeError(
+                "PDF ingestion requires PyMuPDF. Install the `pymupdf` package so `fitz` is available."
+            ) from exc
+        extractors[".pdf"] = PyMuPDFReader()
+
+    if ".md" in suffixes or ".markdown" in suffixes:
+        markdown_reader = MarkdownReader()
+        extractors[".md"] = markdown_reader
+        extractors[".markdown"] = markdown_reader
+
+    if ".epub" in suffixes:
+        extractors[".epub"] = EpubReader()
+
+    if ".pptx" in suffixes or ".ppt" in suffixes:
+        pptx_reader = PptxReader()
+        extractors[".pptx"] = pptx_reader
+        extractors[".ppt"] = pptx_reader
+
+    if ".docx" in suffixes:
+        extractors[".docx"] = DocxReader()
+
+    return extractors
+
+
 def load_documents_from_files(file_paths: list[Path]) -> list[Document]:
     if not file_paths:
         raise ValueError("No files were provided for ingestion.")
@@ -124,6 +175,7 @@ def load_documents_from_files(file_paths: list[Path]) -> list[Document]:
     reader = SimpleDirectoryReader(
         input_files=[str(path) for path in file_paths],
         filename_as_id=True,
+        file_extractor=_build_file_extractors(file_paths),
     )
     documents = reader.load_data()
     if not documents:
@@ -134,14 +186,17 @@ def load_documents_from_files(file_paths: list[Path]) -> list[Document]:
         metadata = dict(document.metadata or {})
         file_path_value = metadata.get("file_path") or metadata.get("filename") or document.doc_id
         source_path = Path(str(file_path_value)).resolve()
+        normalized_text = _normalize_document_text(document.text or "")
         metadata.update(
             {
                 "document_id": build_document_id(source_path),
                 "filename": source_path.name,
                 "source_path": str(source_path),
                 "relative_path": _resolve_relative_path(source_path),
+                "file_type": source_path.suffix.lower(),
             }
         )
+        document.set_content(normalized_text)
         document.metadata = metadata
         document.doc_id = metadata["document_id"]
         enriched_documents.append(document)

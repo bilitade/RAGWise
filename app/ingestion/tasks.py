@@ -45,9 +45,8 @@ def _run_ingestion_task(
 
     def progress_callback(stage: IngestionStage) -> None:
         stage_history.append(stage)
-        state = "FAILURE" if stage.status == "failed" else "STARTED"
         task.update_state(
-            state=state,
+            state="STARTED",
             meta=_build_task_meta(task.request.id, stage, stage_history),
         )
 

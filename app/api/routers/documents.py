@@ -16,6 +16,41 @@ from app.retrieval.retrieval import advanced_search, bm25_search, similarity_sea
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
+def _default_stage(task_id: str, status: str) -> dict:
+    normalized_status = status.upper()
+    if normalized_status == "PENDING":
+        return {
+            "name": "queued",
+            "status": "pending",
+            "progress": 0,
+            "message": "Job is queued and waiting for a worker.",
+            "details": {"task_id": task_id},
+        }
+    if normalized_status == "STARTED":
+        return {
+            "name": "queued",
+            "status": "running",
+            "progress": 1,
+            "message": "Worker accepted the job and is preparing ingestion.",
+            "details": {"task_id": task_id},
+        }
+    if normalized_status == "SUCCESS":
+        return {
+            "name": "completed",
+            "status": "completed",
+            "progress": 100,
+            "message": "Job completed successfully.",
+            "details": {"task_id": task_id},
+        }
+    return {
+        "name": "failed",
+        "status": "failed",
+        "progress": 100,
+        "message": "Job failed.",
+        "details": {"task_id": task_id},
+    }
+
+
 def _build_job_status(task_id: str) -> IngestionJobStatusResponse:
     task = get_task_result(task_id)
     stage = None
@@ -24,6 +59,14 @@ def _build_job_status(task_id: str) -> IngestionJobStatusResponse:
         stage = task.info.get("stage")
         if isinstance(task.info.get("stage_history"), list):
             stage_history = task.info["stage_history"]
+    else:
+        stage = _default_stage(task.id, task.status)
+        stage_history = [stage]
+
+    if stage is None:
+        stage = _default_stage(task.id, task.status)
+    if not stage_history:
+        stage_history = [stage]
 
     result = None
     error = None
