@@ -1,12 +1,12 @@
 {
   "documents": [
     {
-      "document_id": "b6a43e13714f30f479236f52c090a46ceeeb2358",
-      "filename": "About AI foundary.docx",
-      "relative_path": "About AI foundary.docx",
-      "indexed_size_bytes": 39225,
-      "indexed_modified_at": 1775495074.3505955,
-      "indexed_at": "2026-04-06T17:06:23.035050+00:00"
+      "document_id": "dc42ee0edbc945addc5b9a037a022110ba828597",
+      "filename": "cooperative_bank_of_oromia_faq.md",
+      "relative_path": "cooperative_bank_of_oromia_faq.md",
+      "indexed_size_bytes": 3737,
+      "indexed_modified_at": 1775562185.7440414,
+      "indexed_at": "2026-04-07T11:52:55.234850+00:00"
     }
   ]
 }

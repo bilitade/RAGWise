@@ -275,7 +275,7 @@ export function buildDownloadableFileSpec(
     }
 
     const finalBaseName = slugify(subTitle || baseName || "assistant-file");
-    const uniqueName = index === 999 ? finalBaseName : `${finalBaseName}-${index + 1}`;
+    const uniqueName = finalBaseName; // Removed numeric suffix as requested
 
     return {
         extension: mapped.extension,
