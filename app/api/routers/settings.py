@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -17,6 +16,7 @@ from app.config import (
     CHUNK_SIZE_MAX,
     CHUNK_SIZE_MIN,
     LANGCHAIN_API_KEY,
+    LANGCHAIN_ENDPOINT,
     LANGCHAIN_PROJECT,
     LANGCHAIN_TRACING_V2,
     LANGSMITH_WORKSPACE_ID,
@@ -28,6 +28,7 @@ from app.db.models import AgentPersona, AppSetting, User, UserRole
 from app.db.session import get_db
 from app.ingestion.tasks import get_task_result
 from app.services.jobs_repo import list_jobs
+from app.services.langsmith_metrics import fetch_langsmith_project_metrics
 from app.services.runtime_config import (
     KEY_DEFAULT_CHAT_MODEL,
     KEY_DEFAULT_EMBED_MODEL,
@@ -38,7 +39,6 @@ from app.services.runtime_config import (
     load_model_provider,
     load_openai_api_key,
 )
-from app.services.usage_events import usage_by_user, usage_summary_since
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -397,30 +397,33 @@ def ingestion_jobs_alias(
 # --- Usage ---
 
 
+def _langsmith_dashboard_url() -> str:
+    """Browser URL for the LangSmith UI (LANGCHAIN_ENDPOINT is the tracing API host)."""
+    ep = (LANGCHAIN_ENDPOINT or "").lower()
+    if "eu.api.smith" in ep or "eu.smith" in ep:
+        return "https://eu.smith.langchain.com"
+    return "https://smith.langchain.com"
+
+
 class UsageSummaryResponse(BaseModel):
-    summary: dict[str, Any]
-    by_user: list[dict[str, Any]]
     langsmith: dict[str, Any]
 
 
 @router.get("/usage/summary", response_model=UsageSummaryResponse)
 def usage_summary(
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-    days: int = Query(30, ge=1, le=365),
 ) -> UsageSummaryResponse:
     _ = admin
-    since = datetime.now(tz=UTC) - timedelta(days=days)
-    summary = usage_summary_since(db, since=since)
-    by_user = usage_by_user(db, since=since)
     langsmith = {
         "tracing_enabled": LANGCHAIN_TRACING_V2,
         "project": LANGCHAIN_PROJECT,
         "api_key_configured": bool(LANGCHAIN_API_KEY),
+        "endpoint": LANGCHAIN_ENDPOINT,
+        "dashboard_url": _langsmith_dashboard_url(),
         "workspace_id": LANGSMITH_WORKSPACE_ID,
-        "hint": "Open LangSmith dashboard for detailed traces and billing when tracing is enabled.",
+        "metrics": fetch_langsmith_project_metrics(),
     }
-    return UsageSummaryResponse(summary=summary, by_user=by_user, langsmith=langsmith)
+    return UsageSummaryResponse(langsmith=langsmith)
 
 
 # --- Logs ---

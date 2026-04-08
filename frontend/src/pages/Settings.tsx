@@ -3,6 +3,7 @@ import {
   FiActivity,
   FiBarChart2,
   FiCpu,
+  FiExternalLink,
   FiFileText,
   FiKey,
   FiLayers,
@@ -765,11 +766,7 @@ function UsagePanel() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetchJson<{
-          summary: Record<string, unknown>;
-          by_user: unknown[];
-          langsmith: Record<string, unknown>;
-        }>(`${API_BASE_URL}/api/settings/usage/summary?days=30`);
+        const res = await fetchJson<{ langsmith: Record<string, unknown> }>(`${API_BASE_URL}/api/settings/usage/summary`);
         setData(res as unknown as Record<string, unknown>);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "Failed");
@@ -793,45 +790,129 @@ function UsagePanel() {
     );
   }
 
-  const summary = data.summary as Record<string, unknown>;
-  const langsmith = data.langsmith as Record<string, unknown>;
+  const langsmith = data.langsmith as {
+    tracing_enabled?: boolean;
+    project?: string;
+    api_key_configured?: boolean;
+    endpoint?: string;
+    dashboard_url?: string;
+    workspace_id?: string | null;
+    metrics?: {
+      ok: boolean;
+      error?: string;
+      fetched_at?: string;
+      project_name?: string;
+      run_count?: number | null;
+      total_cost_usd?: number | null;
+      prompt_cost_usd?: number | null;
+      completion_cost_usd?: number | null;
+      total_tokens?: number | null;
+      prompt_tokens?: number | null;
+      completion_tokens?: number | null;
+    };
+  };
+
+  const tracingOn = Boolean(langsmith.tracing_enabled);
+  const keyOk = Boolean(langsmith.api_key_configured);
+  const dashboardUrl = typeof langsmith.dashboard_url === "string" ? langsmith.dashboard_url : "https://smith.langchain.com";
+  const metrics = langsmith.metrics;
+  const fmtUsd = (n: number | null | undefined) =>
+    n == null || Number.isNaN(n) ? "—" : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+  const fmtInt = (n: number | null | undefined) => (n == null ? "—" : String(n));
 
   return (
     <div className="space-y-8">
-      <SectionCard title="Aggregated usage (rolling window)">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="brand-elevated rounded-2xl p-4">
-            <div className="text-muted text-xs uppercase tracking-wide">Events</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums">{String(summary.event_count ?? "—")}</div>
-          </div>
-          <div className="brand-elevated rounded-2xl p-4">
-            <div className="text-muted text-xs uppercase tracking-wide">Est. cost (USD)</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums">{String(summary.total_estimated_cost_usd ?? "0")}</div>
-          </div>
-          <div className="brand-elevated rounded-2xl p-4">
-            <div className="text-muted text-xs uppercase tracking-wide">Tokens in</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums">{String(summary.total_tokens_in ?? "0")}</div>
-          </div>
-          <div className="brand-elevated rounded-2xl p-4">
-            <div className="text-muted text-xs uppercase tracking-wide">Tokens out</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums">{String(summary.total_tokens_out ?? "0")}</div>
-          </div>
+      <SectionCard title="LangSmith (live)">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+              tracingOn ? "bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[var(--success)]" : "text-muted bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
+            }`}
+          >
+            Tracing {tracingOn ? "on" : "off"}
+          </span>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+              keyOk ? "bg-[color-mix(in_srgb,var(--data)_14%,transparent)] text-[var(--data)]" : "bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] text-[var(--warning)]"
+            }`}
+          >
+            API key {keyOk ? "set" : "missing"}
+          </span>
         </div>
-        <details className="mt-6">
-          <summary className="text-secondary cursor-pointer text-sm font-medium">Raw JSON</summary>
-          <pre className="text-muted mt-3 max-h-48 overflow-auto rounded-xl border border-[var(--border)] p-3 text-xs">{JSON.stringify(summary, null, 2)}</pre>
-        </details>
-      </SectionCard>
 
-      <SectionCard title="LangSmith">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          {Object.entries(langsmith).map(([k, v]) => (
-            <div key={k} className="brand-elevated flex flex-col rounded-xl px-3 py-2">
-              <dt className="text-muted text-xs capitalize">{k.replace(/_/g, " ")}</dt>
-              <dd className="mt-0.5 font-mono text-xs break-all">{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>
+        {metrics?.ok ? (
+          <>
+            <p className="text-muted mb-3 text-xs">
+              Loaded from LangSmith for project <span className="font-mono text-[var(--text-secondary)]">{metrics.project_name ?? langsmith.project}</span>
+              {metrics.fetched_at ? (
+                <>
+                  {" "}
+                  · <span className="tabular-nums">{new Date(metrics.fetched_at).toLocaleString()}</span>
+                </>
+              ) : null}
+            </p>
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="brand-elevated rounded-2xl p-4">
+                <div className="text-muted text-xs uppercase tracking-wide">Est. total cost (USD)</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums">{fmtUsd(metrics.total_cost_usd ?? undefined)}</div>
+                <p className="text-muted mt-1 text-[11px] leading-snug">
+                  LangSmith estimate for this project (includes traced LLM calls; embeddings appear here if ingestion/chat tracing sends those runs to LangSmith).
+                </p>
+              </div>
+              <div className="brand-elevated rounded-2xl p-4">
+                <div className="text-muted text-xs uppercase tracking-wide">Runs</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums">{fmtInt(metrics.run_count ?? undefined)}</div>
+                <p className="text-muted mt-1 text-[11px] leading-snug">Traces/runs in the project (aggregate).</p>
+              </div>
+              <div className="brand-elevated rounded-2xl p-4">
+                <div className="text-muted text-xs uppercase tracking-wide">Total tokens</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums">{fmtInt(metrics.total_tokens ?? undefined)}</div>
+              </div>
+              <div className="brand-elevated rounded-2xl p-4">
+                <div className="text-muted text-xs uppercase tracking-wide">Prompt / completion $</div>
+                <div className="mt-1 text-lg font-semibold tabular-nums">
+                  {fmtUsd(metrics.prompt_cost_usd ?? undefined)} / {fmtUsd(metrics.completion_cost_usd ?? undefined)}
+                </div>
+              </div>
             </div>
-          ))}
+          </>
+        ) : metrics && !metrics.ok ? (
+          <p className="status-error mb-4 text-sm">{metrics.error ?? "Could not load LangSmith metrics."}</p>
+        ) : (
+          <p className="text-secondary mb-4 text-sm">No metrics payload.</p>
+        )}
+
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div className="brand-elevated flex flex-col rounded-xl px-3 py-2.5">
+            <dt className="text-muted text-xs uppercase tracking-wide">Project</dt>
+            <dd className="mt-1 font-mono text-sm font-medium break-all">{String(langsmith.project ?? "—")}</dd>
+          </div>
+          <div className="brand-elevated flex flex-col rounded-xl px-3 py-2.5">
+            <dt className="text-muted text-xs uppercase tracking-wide">API endpoint</dt>
+            <dd className="mt-1 font-mono text-xs break-all">{String(langsmith.endpoint ?? "—")}</dd>
+          </div>
+          {langsmith.workspace_id ? (
+            <div className="brand-elevated flex flex-col rounded-xl px-3 py-2.5 sm:col-span-2">
+              <dt className="text-muted text-xs uppercase tracking-wide">Workspace ID</dt>
+              <dd className="mt-1 font-mono text-xs break-all">{String(langsmith.workspace_id)}</dd>
+            </div>
+          ) : null}
         </dl>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-secondary max-w-xl text-sm">
+            Figures match the LangSmith project for this API key. Untraced work (e.g. embed-only ingestion) is not included—use your model provider’s usage/billing for that.
+          </p>
+          <a
+            href={dashboardUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="brand-secondary inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium"
+          >
+            Open LangSmith
+            <FiExternalLink className="size-4" strokeWidth={2.25} />
+          </a>
+        </div>
       </SectionCard>
     </div>
   );

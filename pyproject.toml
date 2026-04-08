@@ -27,6 +27,7 @@ dependencies = [
     "llama-index-retrievers-bm25==0.7.1",
     "llama-index-vector-stores-qdrant==0.10.0",
     "langchain-openai>=1.1.12",
+    "langsmith>=0.7.25",
     "pymupdf>=1.24.0",
     "qdrant-client==1.17.1",
     "tavily-python>=0.7.23",

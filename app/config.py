@@ -52,7 +52,6 @@ UPLOAD_DIR = Path(get_env("DOCUMENTS_DIR", str(PROJECT_ROOT / "upload")))
 
 QDRANT_URL = get_env("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = get_env("QDRANT_COLLECTION", "knowledge_base")
-QDRANT_API_KEY = get_env("QDRANT_API_KEY")
 QDRANT_TIMEOUT = get_float_env("QDRANT_TIMEOUT", 10.0)
 BM25_CACHE_PATH = DB_DIR / f"{QDRANT_COLLECTION}_nodes.jsonl"
 DOCUMENT_REGISTRY_PATH = DB_DIR / f"{QDRANT_COLLECTION}_documents.json"
@@ -103,4 +102,6 @@ APP_LOG_FILE = get_env("APP_LOG_FILE", str(PROJECT_ROOT / "logs" / "app.log"))
 LANGCHAIN_TRACING_V2 = get_env("LANGCHAIN_TRACING_V2", "false").lower() in ("1", "true", "yes")
 LANGCHAIN_API_KEY = get_env("LANGCHAIN_API_KEY")
 LANGCHAIN_PROJECT = get_env("LANGCHAIN_PROJECT", "rag-deep-agent")
+# Traces API host (LANGCHAIN_ENDPOINT); web dashboard is usually smith.langchain.com
+LANGCHAIN_ENDPOINT = get_env("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
 LANGSMITH_WORKSPACE_ID = get_env("LANGSMITH_WORKSPACE_ID")

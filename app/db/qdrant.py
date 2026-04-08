@@ -3,12 +3,7 @@ from pydantic import BaseModel, ConfigDict
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
-from app.config import (
-    QDRANT_API_KEY,
-    QDRANT_COLLECTION,
-    QDRANT_TIMEOUT,
-    QDRANT_URL,
-)
+from app.config import QDRANT_COLLECTION, QDRANT_TIMEOUT, QDRANT_URL
 
 
 class QdrantConnectionConfig(BaseModel):
@@ -16,16 +11,15 @@ class QdrantConnectionConfig(BaseModel):
 
     url: str = QDRANT_URL
     collection_name: str = QDRANT_COLLECTION
-    api_key: str | None = QDRANT_API_KEY
     timeout: float = QDRANT_TIMEOUT
 
 
 class QdrantStore:
     def __init__(self, config: QdrantConnectionConfig | None = None) -> None:
         self.config = config or QdrantConnectionConfig()
+        # Local Qdrant has no API key; cloud Qdrant with auth is not configured here.
         self._client = QdrantClient(
             url=self.config.url,
-            api_key=self.config.api_key,
             timeout=self.config.timeout,
         )
 
