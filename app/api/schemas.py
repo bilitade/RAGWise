@@ -58,9 +58,55 @@ class ChatTurn(BaseModel):
     content: str
 
 
+ContextWindowOption = Literal["min", "medium", "max"]
+
+
 class ChatStreamRequest(BaseModel):
     messages: list[ChatTurn] = Field(default_factory=list)
     persona_id: str | None = None
+    """When set, continue this thread; omit to start a new persisted thread (authenticated users)."""
+
+    thread_id: str | None = None
+    """Sliding window over the last N user+assistant messages: 5 / 10 / 15."""
+
+    context_window: ContextWindowOption | None = None
+
+
+class ChatThreadCreate(BaseModel):
+    title: str | None = Field(default=None, max_length=512)
+    persona_id: str | None = None
+    context_window: ContextWindowOption = "min"
+
+
+class ChatThreadUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=512)
+    persona_id: str | None = None
+    context_window: ContextWindowOption | None = None
+
+
+class ChatThreadResponse(BaseModel):
+    id: str
+    title: str
+    context_window: str
+    persona_id: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class ChatThreadListResponse(BaseModel):
+    threads: list[ChatThreadResponse]
+
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    sort_order: int
+    created_at: str
+
+
+class ChatMessagesListResponse(BaseModel):
+    messages: list[ChatMessageResponse]
 
 
 class IngestAllRequest(BaseModel):

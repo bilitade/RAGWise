@@ -134,20 +134,22 @@ def _build_job_status(task_id: str) -> IngestionJobStatusResponse:
 @router.get("", response_model=DocumentListResponse)
 def get_documents(
     user: User | None = Depends(require_active_user),
+    db: Session = Depends(get_db),
 ) -> DocumentListResponse:
     _ = user
-    return DocumentListResponse(documents=list_documents())
+    return DocumentListResponse(documents=list_documents(db))
 
 
 @router.post("/upload", response_model=DocumentListResponse)
 async def upload_documents(
     files: list[UploadFile] = File(...),
     user: User | None = Depends(require_active_user),
+    db: Session = Depends(get_db),
 ) -> DocumentListResponse:
     _ = user
     uploaded_documents = []
     for file in files:
-        uploaded_documents.append(await save_uploaded_file(file))
+        uploaded_documents.append(await save_uploaded_file(db, file))
     return DocumentListResponse(documents=uploaded_documents)
 
 
@@ -161,7 +163,7 @@ async def upload_and_ingest_document(
 ) -> DocumentJobResponse:
     _validate_chunk_params(chunk_size, chunk_overlap, user)
     _quota_check(user, db)
-    document = await save_uploaded_file(file)
+    document = await save_uploaded_file(db, file)
     task = ingest_documents_task.delay(
         input_dir=document.absolute_path,
         recreate_collection=False,
@@ -227,7 +229,7 @@ def reindex_single_document(
     _validate_chunk_params(chunk_size, chunk_overlap, user)
     _quota_check(user, db)
     try:
-        document = get_document_by_id(document_id)
+        document = get_document_by_id(db, document_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     task = reindex_document_task.delay(
@@ -251,10 +253,11 @@ def reindex_single_document(
 def download_document(
     document_id: str,
     user: User | None = Depends(require_active_user),
+    db: Session = Depends(get_db),
 ) -> FileResponse:
     _ = user
     try:
-        document = get_document_by_id(document_id)
+        document = get_document_by_id(db, document_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     path = Path(document.absolute_path).resolve()
@@ -272,10 +275,11 @@ def download_document(
 def delete_single_document(
     document_id: str,
     user: User | None = Depends(require_active_user),
+    db: Session = Depends(get_db),
 ) -> DocumentDeleteResponse:
     _ = user
     try:
-        return DocumentDeleteResponse(document=delete_document(document_id))
+        return DocumentDeleteResponse(document=delete_document(db, document_id))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

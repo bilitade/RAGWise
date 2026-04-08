@@ -1,5 +1,4 @@
 from app.documents.service import (
-    DocumentRegistryEntry,
     ManagedDocument,
     delete_document,
     get_document_by_id,
@@ -8,10 +7,10 @@ from app.documents.service import (
     list_documents,
     reindex_document,
     save_uploaded_file,
+    sync_document_rows_after_paths,
 )
 
 __all__ = [
-    "DocumentRegistryEntry",
     "ManagedDocument",
     "delete_document",
     "get_document_by_id",
@@ -20,4 +19,5 @@ __all__ = [
     "list_documents",
     "reindex_document",
     "save_uploaded_file",
+    "sync_document_rows_after_paths",
 ]

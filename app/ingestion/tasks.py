@@ -3,7 +3,12 @@ from pathlib import Path
 
 from celery.result import AsyncResult
 
-from app.documents.service import ingest_all_documents, ingest_single_document, reindex_document
+from app.documents.service import (
+    ingest_all_documents,
+    ingest_single_document,
+    reindex_document,
+    sync_document_rows_after_paths,
+)
 from app.db.session import SessionLocal
 from app.ingestion.loader import IngestionStage, ingest_documents
 from app.services.runtime_config import apply_openai_env_from_db
@@ -81,27 +86,37 @@ def ingest_documents_task(
     _apply_runtime_env()
 
     def runner(progress_callback):
-        if input_dir:
-            input_path = Path(input_dir)
-            if input_path.is_file():
-                return ingest_single_document(
-                    input_path,
+        db = SessionLocal()
+        try:
+            if input_dir:
+                input_path = Path(input_dir)
+                if input_path.is_file():
+                    return ingest_single_document(
+                        db,
+                        input_path,
+                        progress_callback=progress_callback,
+                        chunk_size=chunk_size,
+                        chunk_overlap=chunk_overlap,
+                    )
+                result = ingest_documents(
+                    input_dir=input_path,
+                    recreate_collection=recreate_collection,
                     progress_callback=progress_callback,
                     chunk_size=chunk_size,
                     chunk_overlap=chunk_overlap,
                 )
-            return ingest_documents(
-                input_dir=input_path,
-                recreate_collection=recreate_collection,
+                from app.ingestion.loader import list_source_files
+
+                sync_document_rows_after_paths(db, list_source_files(input_path))
+                return result
+            return ingest_all_documents(
+                db,
                 progress_callback=progress_callback,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
             )
-        return ingest_all_documents(
-            progress_callback=progress_callback,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
+        finally:
+            db.close()
 
     return _run_ingestion_task(
         self,
@@ -119,15 +134,23 @@ def reindex_document_task(
 ) -> dict:
     _apply_runtime_env()
 
+    def runner(progress_callback):
+        db = SessionLocal()
+        try:
+            return reindex_document(
+                db,
+                document_id,
+                progress_callback=progress_callback,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+        finally:
+            db.close()
+
     return _run_ingestion_task(
         self,
         task_name="Document reindex task",
-        runner=lambda progress_callback: reindex_document(
-            document_id,
-            progress_callback=progress_callback,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        ),
+        runner=runner,
     )
 
 

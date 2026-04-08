@@ -10,7 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from deepagents import create_deep_agent
-from langchain_core.messages import AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_openai import ChatOpenAI
 
 from app.agent.prompts import agent_system_prompt
@@ -18,20 +18,19 @@ from app.agent.tools import internet_search, knowledge_base_search
 from app.config import OPENAI_MODEL
 
 
-def _build_query_from_messages(messages: list[dict[str, str]] | None, query: str | None = None) -> str:
-    if query:
-        return query
-    if not messages:
-        raise ValueError("A query or chat messages are required.")
-
-    transcript: list[str] = []
+def dict_messages_to_langchain(messages: list[dict[str, str]]) -> list[HumanMessage | AIMessage]:
+    """Multi-turn history for deep agents: alternating user / assistant LangChain messages."""
+    lc: list[HumanMessage | AIMessage] = []
     for message in messages:
-        role = message.get("role", "user").strip().capitalize()
-        content = message.get("content", "").strip()
-        if content:
-            transcript.append(f"{role}: {content}")
-    transcript.append("Answer the latest user request using the appropriate tools when needed.")
-    return "\n".join(transcript)
+        role = (message.get("role") or "user").strip().lower()
+        content = message.get("content") or ""
+        if role == "assistant":
+            lc.append(AIMessage(content=content))
+        elif role == "user":
+            lc.append(HumanMessage(content=content))
+    if not lc:
+        raise ValueError("No user or assistant messages to send to the agent.")
+    return lc
 
 
 def build_agent(
@@ -82,15 +81,26 @@ async def astream_agent_events(
     system_prompt: str | None = None,
     model_name: str | None = None,
 ) -> AsyncIterator[dict[str, str]]:
-    compiled_query = _build_query_from_messages(messages, query)
     agent = build_agent(system_prompt=system_prompt, model_name=model_name)
+
+    if messages:
+        filtered = [
+            {"role": m["role"], "content": m.get("content") or ""}
+            for m in messages
+            if (m.get("role") or "").lower() in ("user", "assistant")
+        ]
+        lc_messages = dict_messages_to_langchain(filtered)
+    elif query:
+        lc_messages = [HumanMessage(content=query)]
+    else:
+        raise ValueError("A query or chat messages are required.")
 
     yield {"type": "status", "label": "Thinking"}
     yielded_token = False
     current_status = "Thinking"
 
     async for event in agent.astream_events(
-        {"messages": [HumanMessage(content=compiled_query)]},
+        {"messages": lc_messages},
         version="v2",
     ):
         event_name = str(event.get("event", ""))
@@ -134,10 +144,20 @@ def stream_agent_text(
     system_prompt: str | None = None,
     model_name: str | None = None,
 ) -> Iterator[str]:
-    compiled_query = _build_query_from_messages(messages, query)
     agent = build_agent(system_prompt=system_prompt, model_name=model_name)
+    if messages:
+        filtered = [
+            {"role": m["role"], "content": m.get("content") or ""}
+            for m in messages
+            if (m.get("role") or "").lower() in ("user", "assistant")
+        ]
+        lc_messages = dict_messages_to_langchain(filtered)
+    elif query:
+        lc_messages = [HumanMessage(content=query)]
+    else:
+        raise ValueError("A query or chat messages are required.")
     for message_chunk, _metadata in agent.stream(
-        {"messages": [HumanMessage(content=compiled_query)]},
+        {"messages": lc_messages},
         stream_mode="messages",
     ):
         if isinstance(message_chunk, AIMessageChunk) and message_chunk.content:

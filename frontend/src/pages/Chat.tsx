@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiCheckCircle,
+  FiChevronDown,
   FiClock,
   FiCpu,
   FiDatabase,
@@ -14,10 +15,24 @@ import {
   FiXCircle,
 } from "react-icons/fi";
 
-import type { ChatConversation, ChatMessage } from "../types";
-import { API_BASE_URL, buildAuthHeaders, CHAT_SIDEBAR_KEY, readSidebarPreference, writeSidebarPreference } from "../utils";
+import type { ChatContextWindow, ChatConversation, ChatMessage } from "../types";
+import {
+  API_BASE_URL,
+  buildAuthHeaders,
+  CHAT_SIDEBAR_KEY,
+  getAccessToken,
+  isServerChatThreadId,
+  readSidebarPreference,
+  writeSidebarPreference,
+} from "../utils";
 import AssistantMessageBody from "../components/AssistantMessageBody";
 import { SidebarToggleButton, WorkspaceMainColumn, WorkspaceSidebarRail } from "../components/WorkspaceChrome";
+
+const CONTEXT_MODE_OPTIONS: { value: ChatContextWindow; label: string; hint: string }[] = [
+  { value: "min", label: "mini", hint: "5 messages" },
+  { value: "medium", label: "mid", hint: "10 messages" },
+  { value: "max", label: "max", hint: "15 messages" },
+];
 
 // ── Status config ────────────────────────────────────────────────────────────
 type StatusConfig = {
@@ -143,21 +158,18 @@ function InlineStatusPlaceholder({
 }
 
 export default function Chat() {
-  const [conversations, setConversations] = useState<ChatConversation[]>([
-    {
-      id: "chat-1",
-      title: "New chat",
-      messages: [],
-      updatedAt: Date.now(),
-    },
-  ]);
-  const [activeConversationId, setActiveConversationId] = useState("chat-1");
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState("");
+  const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatStatus, setChatStatus] = useState("Ready");
   const [chatActivity, setChatActivity] = useState<string[]>([]);
   const [personas, setPersonas] = useState<{ id: string; name: string; description: string }[]>([]);
   const [personaId, setPersonaId] = useState("");
+  const [contextWindow, setContextWindow] = useState<ChatContextWindow>("min");
+  const [contextModeMenuOpen, setContextModeMenuOpen] = useState(false);
+  const contextModeRef = useRef<HTMLDivElement | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [chatSidebarOpen, setChatSidebarOpen] = useState(() => readSidebarPreference(CHAT_SIDEBAR_KEY));
   const recognitionRef = useRef<any>(null);
@@ -166,6 +178,23 @@ export default function Chat() {
   useEffect(() => {
     writeSidebarPreference(CHAT_SIDEBAR_KEY, chatSidebarOpen);
   }, [chatSidebarOpen]);
+
+  useEffect(() => {
+    if (!contextModeMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = contextModeRef.current;
+      if (el && !el.contains(e.target as Node)) setContextModeMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextModeMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [contextModeMenuOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -178,7 +207,7 @@ export default function Chat() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const activeConversation = useMemo(
-    () => conversations.find((item) => item.id === activeConversationId) ?? conversations[0],
+    () => conversations.find((item) => item.id === activeConversationId),
     [activeConversationId, conversations],
   );
   const chatMessages = activeConversation?.messages ?? [];
@@ -192,6 +221,60 @@ export default function Chat() {
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setPersonas(Array.isArray(data) ? data : []))
       .catch(() => setPersonas([]));
+  }, []);
+
+  useEffect(() => {
+    if (!getAccessToken()) {
+      const id = `local-${Date.now()}`;
+      setConversations([{ id, title: "New chat", messages: [], updatedAt: Date.now() }]);
+      setActiveConversationId(id);
+      setThreadsLoaded(true);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const listRes = await fetch(`${API_BASE_URL}/api/chat/threads`, { headers: buildAuthHeaders() });
+        const listData = listRes.ok ? await listRes.json() : { threads: [] };
+        const raw = Array.isArray(listData.threads) ? listData.threads : [];
+
+        if (raw.length === 0) {
+          const createRes = await fetch(`${API_BASE_URL}/api/chat/threads`, {
+            method: "POST",
+            headers: buildAuthHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify({ context_window: "min" }),
+          });
+          if (!createRes.ok) {
+            throw new Error(await createRes.text());
+          }
+          const t = (await createRes.json()) as {
+            id: string;
+            title: string;
+            updated_at?: string;
+          };
+          const updatedAt = t.updated_at ? Date.parse(t.updated_at) : Date.now();
+          setConversations([{ id: t.id, title: t.title, messages: [], updatedAt }]);
+          setActiveConversationId(t.id);
+        } else {
+          const mapped: ChatConversation[] = raw.map(
+            (t: { id: string; title: string; updated_at?: string }) => ({
+              id: t.id,
+              title: t.title,
+              messages: [],
+              updatedAt: t.updated_at ? Date.parse(t.updated_at) : Date.now(),
+            }),
+          );
+          setConversations(mapped);
+          setActiveConversationId(mapped[0].id);
+        }
+      } catch {
+        const id = `local-${Date.now()}`;
+        setConversations([{ id, title: "New chat", messages: [], updatedAt: Date.now() }]);
+        setActiveConversationId(id);
+      } finally {
+        setThreadsLoaded(true);
+      }
+    })();
   }, []);
 
   function updateActiveConversation(updater: (conversation: ChatConversation) => ChatConversation) {
@@ -208,8 +291,44 @@ export default function Chat() {
     return firstUserMessage.slice(0, 48) + (firstUserMessage.length > 48 ? "..." : "");
   }
 
-  function createConversation() {
-    const id = `chat-${Date.now()}`;
+  async function createConversation() {
+    setChatInput("");
+    setChatStatus("Ready");
+    setChatActivity([]);
+
+    if (getAccessToken()) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/threads`, {
+          method: "POST",
+          headers: buildAuthHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ context_window: contextWindow }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const t = (await res.json()) as { id: string; title: string; updated_at?: string };
+        const updatedAt = t.updated_at ? Date.parse(t.updated_at) : Date.now();
+        const conversation: ChatConversation = {
+          id: t.id,
+          title: t.title,
+          messages: [],
+          updatedAt,
+        };
+        setConversations((current) => [conversation, ...current]);
+        setActiveConversationId(t.id);
+      } catch {
+        const id = `local-${Date.now()}`;
+        const conversation: ChatConversation = {
+          id,
+          title: "New chat",
+          messages: [],
+          updatedAt: Date.now(),
+        };
+        setConversations((current) => [conversation, ...current]);
+        setActiveConversationId(id);
+      }
+      return;
+    }
+
+    const id = `local-${Date.now()}`;
     const conversation: ChatConversation = {
       id,
       title: "New chat",
@@ -218,14 +337,42 @@ export default function Chat() {
     };
     setConversations((current) => [conversation, ...current]);
     setActiveConversationId(id);
+  }
+
+  async function selectConversation(id: string) {
+    setActiveConversationId(id);
     setChatInput("");
     setChatStatus("Ready");
     setChatActivity([]);
+    if (!getAccessToken() || !isServerChatThreadId(id)) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat/threads/${id}/messages`, {
+        headers: buildAuthHeaders(),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        messages: { role: string; content: string }[];
+      };
+      const messages: ChatMessage[] = (data.messages ?? []).map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      }));
+      setConversations((current) =>
+        current.map((c) => (c.id === id ? { ...c, messages, updatedAt: Date.now() } : c)),
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   async function handleChatSubmit() {
     if (!chatInput.trim() || chatStreaming || !activeConversation) return;
-    const nextMessages: ChatMessage[] = [...chatMessages, { role: "user", content: chatInput }];
+    const trimmed = chatInput.trim();
+    const nextMessages: ChatMessage[] = [...chatMessages, { role: "user", content: trimmed }];
+    const previousConversationId = activeConversation.id;
+    const authed = !!getAccessToken();
+    const serverThread = authed && isServerChatThreadId(activeConversation.id);
+
     updateActiveConversation((conversation) => ({
       ...conversation,
       title: buildConversationTitle(nextMessages),
@@ -237,14 +384,24 @@ export default function Chat() {
     setChatStatus("Thinking");
     setChatActivity(["Thinking"]);
 
+    const requestBody = serverThread
+      ? {
+          messages: [{ role: "user" as const, content: trimmed }],
+          thread_id: activeConversation.id,
+          context_window: contextWindow,
+          persona_id: personaId || null,
+        }
+      : {
+          messages: nextMessages,
+          context_window: contextWindow,
+          persona_id: personaId || null,
+        };
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: "POST",
         headers: buildAuthHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          messages: nextMessages,
-          persona_id: personaId || null,
-        }),
+        body: JSON.stringify(requestBody),
       });
       if (!response.ok || !response.body) {
         throw new Error(await response.text());
@@ -295,6 +452,20 @@ export default function Chat() {
               updated[updated.length - 1] = { role: "assistant", content: payload.error ?? "Chat failed." };
               return { ...conversation, messages: updated, updatedAt: Date.now() };
             });
+          }
+
+          if (
+            event === "done" &&
+            typeof (payload as Record<string, unknown>).thread_id === "string" &&
+            !isServerChatThreadId(previousConversationId)
+          ) {
+            const tid = String((payload as Record<string, unknown>).thread_id);
+            setConversations((current) =>
+              current.map((c) =>
+                c.id === previousConversationId ? { ...c, id: tid, updatedAt: Date.now() } : c,
+              ),
+            );
+            setActiveConversationId(tid);
           }
         }
       }
@@ -393,7 +564,7 @@ export default function Chat() {
                     <button
                       key={conversation.id}
                       type="button"
-                      onClick={() => setActiveConversationId(conversation.id)}
+                      onClick={() => void selectConversation(conversation.id)}
                       className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${
                         active
                           ? "border-[color-mix(in_srgb,var(--primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
@@ -431,7 +602,9 @@ export default function Chat() {
             </nav>
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight sm:text-2xl">{activeConversation?.title ?? "Chat"}</h1>
+            <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight sm:text-2xl">
+              {threadsLoaded ? activeConversation?.title ?? "Chat" : "Loading…"}
+            </h1>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <span
                 className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide sm:text-[11px] ${
@@ -481,7 +654,7 @@ export default function Chat() {
                       chatStreaming && index === chatMessages.length - 1 && !message.content ? (
                         <InlineStatusPlaceholder status={chatStatus} activity={chatActivity} />
                       ) : (
-                        <AssistantMessageBody content={message.content} conversationTitle={activeConversation.title} />
+                        <AssistantMessageBody content={message.content} conversationTitle={activeConversation?.title ?? ""} />
                       )
                     ) : (
                       <div className="whitespace-pre-wrap">{message.content}</div>
@@ -505,19 +678,71 @@ export default function Chat() {
                 >
                   {isListening ? <FiSquare className="size-[18px]" strokeWidth={2.5} /> : <FiMic className="size-5" strokeWidth={2.25} />}
                 </button>
-                <textarea
-                  value={chatInput}
-                  onChange={(event) => setChatInput(event.target.value)}
-                  onKeyDown={handleChatInputKeyDown}
-                  placeholder={isListening ? "Listening…" : "Message…"}
-                  rows={1}
-                  className="surface-input min-h-[48px] max-h-36 min-w-0 flex-1 resize-y rounded-xl px-3 py-3 text-sm leading-relaxed"
-                />
+                <div className="flex min-w-0 min-h-0 flex-1 flex-row flex-wrap items-end gap-2">
+                  <textarea
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    onKeyDown={handleChatInputKeyDown}
+                    placeholder={isListening ? "Listening…" : "Message…"}
+                    rows={1}
+                    className="surface-input min-h-[48px] max-h-36 min-w-0 w-full flex-1 resize-y rounded-xl px-3 py-3 text-sm leading-relaxed sm:min-w-0"
+                  />
+                  <div
+                    ref={contextModeRef}
+                    className="chat-context-dropdown shrink-0"
+                    data-open={contextModeMenuOpen ? "true" : "false"}
+                  >
+                    <span className="chat-context-dropdown-prefix" id="chat-context-mode-label">
+                      Mode
+                    </span>
+                    <button
+                      type="button"
+                      className="chat-context-dropdown-trigger"
+                      aria-expanded={contextModeMenuOpen}
+                      aria-haspopup="listbox"
+                      aria-labelledby="chat-context-mode-label"
+                      title="How many recent messages the model sees each turn"
+                      onClick={() => setContextModeMenuOpen((o) => !o)}
+                    >
+                      <span className="chat-context-dropdown-trigger-value">
+                        {CONTEXT_MODE_OPTIONS.find((o) => o.value === contextWindow)?.label ?? "mini"}
+                      </span>
+                      <FiChevronDown
+                        className={`chat-context-dropdown-chevron h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
+                          contextModeMenuOpen ? "rotate-180" : ""
+                        }`}
+                        strokeWidth={2.5}
+                        aria-hidden
+                      />
+                    </button>
+                    {contextModeMenuOpen ? (
+                      <ul className="chat-context-dropdown-menu" role="listbox" aria-label="Context window size">
+                        {CONTEXT_MODE_OPTIONS.map((opt) => (
+                          <li key={opt.value} role="presentation">
+                            <button
+                              type="button"
+                              role="option"
+                              className="chat-context-dropdown-option"
+                              aria-selected={contextWindow === opt.value}
+                              onClick={() => {
+                                setContextWindow(opt.value);
+                                setContextModeMenuOpen(false);
+                              }}
+                            >
+                              <span className="chat-context-dropdown-option-title">{opt.label}</span>
+                              <span className="chat-context-dropdown-option-hint">{opt.hint}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => void handleChatSubmit()}
-                disabled={chatStreaming || !chatInput.trim()}
+                disabled={chatStreaming || !chatInput.trim() || !threadsLoaded || !activeConversation}
                 className="chat-send-btn flex h-12 w-full shrink-0 items-center justify-center gap-2 px-4 sm:h-[48px] sm:w-auto"
               >
                 <FiSend className="size-4" strokeWidth={2.25} />

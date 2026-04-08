@@ -54,6 +54,11 @@ export function buildAuthHeaders(base?: HeadersInit): Headers {
     return headers;
 }
 
+/** Whether `id` looks like a server-issued chat thread UUID. */
+export function isServerChatThreadId(id: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export async function fetchJson<T>(
     input: RequestInfo,
     init?: RequestInit,

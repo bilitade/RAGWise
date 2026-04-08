@@ -127,6 +127,10 @@ def test_ingestion_task_runs_in_background_and_reports_stage_status(
         )
 
     monkeypatch.setattr("app.ingestion.tasks.ingest_documents", fake_ingest_documents)
+    monkeypatch.setattr(
+        "app.ingestion.tasks.sync_document_rows_after_paths",
+        lambda db, paths: None,
+    )
 
     with start_worker(celery_test_app, perform_ping_check=False):
         async_result = ingest_documents_task.delay(

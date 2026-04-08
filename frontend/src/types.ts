@@ -56,6 +56,9 @@ export type ChatMessage = {
     content: string;
 };
 
+/** Sliding window for the agent (server applies last N user+assistant messages). */
+export type ChatContextWindow = "min" | "medium" | "max";
+
 export type ChatConversation = {
     id: string;
     title: string;
