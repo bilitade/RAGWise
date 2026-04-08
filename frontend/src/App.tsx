@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { FiMoon, FiSun } from "react-icons/fi";
 
+import { useAuth } from "./auth";
 import type { AppRoute, DocumentsTab, SettingsTab, ThemeMode } from "./types";
-import { getCurrentRoute, navigateTo, readThemePreference, writeThemePreference } from "./utils";
+import { getAccessToken, getCurrentRoute, navigateTo, readThemePreference, writeThemePreference } from "./utils";
 import BrandWordmark from "./components/BrandWordmark";
 import { WorkspaceAppBar, type WorkspaceAppPage } from "./components/WorkspaceChrome";
 import Landing from "./pages/Landing";
@@ -12,6 +13,7 @@ import Login from "./pages/Login";
 import Settings from "./pages/Settings";
 
 export default function App() {
+  const { user, authLoading } = useAuth();
   const [theme, setTheme] = useState<ThemeMode>(() => readThemePreference());
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute());
   const [documentsTab, setDocumentsTab] = useState<DocumentsTab>("files");
@@ -28,10 +30,30 @@ export default function App() {
     return () => window.removeEventListener("popstate", handleRouteChange);
   }, []);
 
+  /** Role-based route access (authenticated users only). */
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (user.role === "normal" && (route === "/documents" || route === "/settings")) {
+      navigateTo("/chat");
+      return;
+    }
+    if (user.role === "pro" && route === "/settings") {
+      navigateTo("/documents");
+    }
+  }, [route, user, authLoading]);
+
+  const workspaceRoute = route !== "/" && route !== "/login";
+  const tokenPresent = !!getAccessToken();
+  const showWorkspaceLoading = workspaceRoute && tokenPresent && authLoading;
+
   return (
     <div className="app-shell box-border min-h-[100dvh] w-full px-[5%] py-4">
       <div className="mx-auto flex h-full min-h-0 w-full max-w-none flex-1 flex-col gap-4">
-        {route === "/" ? (
+        {showWorkspaceLoading ? (
+          <div className="flex min-h-[60vh] flex-1 flex-col items-center justify-center gap-2 px-4">
+            <p className="text-secondary text-sm">Loading workspace…</p>
+          </div>
+        ) : route === "/" ? (
           <>
             <div className="flex items-center justify-between gap-3">
               <BrandWordmark />

@@ -62,6 +62,7 @@ CELERY_RESULT_BACKEND = get_env("CELERY_RESULT_BACKEND", REDIS_URL)
 
 OPENAI_MODEL = get_env("OPENAI_MODEL", "gpt-4.1-mini")
 OPENAI_EMBED_MODEL = get_env("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+MODEL_PROVIDER = get_env("MODEL_PROVIDER", "openai")
 
 API_HOST = get_env("API_HOST", "0.0.0.0")
 API_PORT = get_int_env("API_PORT", 8000)

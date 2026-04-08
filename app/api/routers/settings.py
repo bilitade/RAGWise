@@ -29,6 +29,11 @@ from app.db.session import get_db
 from app.ingestion.tasks import get_task_result
 from app.services.jobs_repo import list_jobs
 from app.services.langsmith_metrics import fetch_langsmith_project_metrics
+from app.services.openai_catalog import (
+    MODEL_PROVIDER_OPTIONS,
+    OPENAI_CHAT_MODEL_OPTIONS,
+    OPENAI_EMBED_MODEL_OPTIONS,
+)
 from app.services.runtime_config import (
     KEY_DEFAULT_CHAT_MODEL,
     KEY_DEFAULT_EMBED_MODEL,
@@ -52,6 +57,9 @@ class SettingsConfigResponse(BaseModel):
     default_embed_model: str
     openai_api_key_configured: bool
     openai_api_key_last4: str | None = None
+    model_provider_options: list[str]
+    openai_chat_model_options: list[str]
+    openai_embed_model_options: list[str]
 
 
 class SettingsConfigPatch(BaseModel):
@@ -82,6 +90,9 @@ def get_config(admin: User = Depends(require_admin), db: Session = Depends(get_d
         default_embed_model=load_default_embed_model(db),
         openai_api_key_configured=bool(key_plain),
         openai_api_key_last4=last4,
+        model_provider_options=list(MODEL_PROVIDER_OPTIONS),
+        openai_chat_model_options=list(OPENAI_CHAT_MODEL_OPTIONS),
+        openai_embed_model_options=list(OPENAI_EMBED_MODEL_OPTIONS),
     )
 
 
@@ -109,6 +120,9 @@ def patch_config(
         default_embed_model=load_default_embed_model(db),
         openai_api_key_configured=bool(key_plain),
         openai_api_key_last4=last4,
+        model_provider_options=list(MODEL_PROVIDER_OPTIONS),
+        openai_chat_model_options=list(OPENAI_CHAT_MODEL_OPTIONS),
+        openai_embed_model_options=list(OPENAI_EMBED_MODEL_OPTIONS),
     )
 
 

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { FiLock } from "react-icons/fi";
 
+import { defaultRouteForRole, useAuth } from "../auth";
 import BrandWordmark from "../components/BrandWordmark";
 import { API_BASE_URL, navigateTo, setAccessToken } from "../utils";
 
 export default function Login() {
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,8 @@ export default function Login() {
       }
       const res = (await response.json()) as { access_token: string };
       setAccessToken(res.access_token);
-      navigateTo("/settings");
+      const me = await refreshUser();
+      navigateTo(me ? defaultRouteForRole(me.role) : "/chat");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Login failed.");
     } finally {

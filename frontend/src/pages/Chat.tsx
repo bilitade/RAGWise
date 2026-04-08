@@ -30,6 +30,7 @@ import {
 } from "../utils";
 import AssistantMessageBody from "../components/AssistantMessageBody";
 import { SidebarToggleButton, WorkspaceMainColumn, WorkspaceSidebarRail } from "../components/WorkspaceChrome";
+import { LuMemoryStick } from "react-icons/lu";
 
 const CONTEXT_MODE_OPTIONS: { value: ChatContextWindow; label: string; hint: string }[] = [
   { value: "min", label: "mini", hint: "5 messages" },
@@ -853,8 +854,12 @@ export default function Chat() {
                     className="chat-context-dropdown shrink-0"
                     data-open={contextModeMenuOpen ? "true" : "false"}
                   >
-                    <span className="chat-context-dropdown-prefix" id="chat-context-mode-label">
-                      Mode
+                    <span
+                      className="chat-context-dropdown-prefix inline-flex items-center gap-1"
+                      id="chat-context-mode-label"
+                    >
+                      <LuMemoryStick className="size-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
+                      <span>Mode</span>
                     </span>
                     <button
                       type="button"

@@ -1,8 +1,9 @@
 import { FiLayers, FiLogOut, FiMessageSquare, FiMoon, FiSettings, FiSun } from "react-icons/fi";
 import { LuPanelLeft } from "react-icons/lu";
 
+import { canAccessDocuments, canAccessSettings, useAuth } from "../auth";
 import type { ThemeMode } from "../types";
-import { navigateTo, setAccessToken } from "../utils";
+import { navigateTo } from "../utils";
 import BrandWordmark from "./BrandWordmark";
 
 /** Unified width for Documents, Settings, and Chat side rails (px). Keep in sync with Tailwind classes below. */
@@ -13,6 +14,12 @@ export type WorkspaceAppPage = "documents" | "chat" | "settings";
 const toolbarIconBtn =
   "flex h-10 w-10 touch-manipulation items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)] text-secondary transition-all active:scale-[0.96]";
 
+function roleBadgeLabel(role: string): string {
+  if (role === "admin") return "Admin";
+  if (role === "pro") return "Pro";
+  return "Normal";
+}
+
 export function WorkspaceAppBar({
   theme,
   setTheme,
@@ -22,8 +29,12 @@ export function WorkspaceAppBar({
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   activePage: WorkspaceAppPage;
 }) {
+  const { user, clearSession } = useAuth();
+  const showDocuments = canAccessDocuments(user?.role);
+  const showSettings = canAccessSettings(user?.role);
+
   function logout() {
-    setAccessToken(null);
+    clearSession();
     navigateTo("/login");
   }
 
@@ -31,20 +42,36 @@ export function WorkspaceAppBar({
 
   return (
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0">
-        <BrandWordmark />
+      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+        <div className="min-w-0 shrink-0">
+          <BrandWordmark />
+        </div>
+        {user ? (
+          <div className="min-w-0 flex-1 sm:max-w-[min(100%,20rem)]">
+            <p className="truncate text-sm font-medium leading-tight" title={user.email}>
+              {user.email}
+            </p>
+            <p className="text-muted mt-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              <span className="rounded-md bg-[color-mix(in_srgb,var(--elevated)_85%,transparent)] px-1.5 py-0.5">
+                {roleBadgeLabel(user.role)}
+              </span>
+            </p>
+          </div>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5" role="toolbar" aria-label="Workspace">
-        <button
-          type="button"
-          onClick={() => navigateTo("/documents")}
-          title="Documents"
-          aria-label="Documents"
-          aria-current={activePage === "documents" ? "page" : undefined}
-          className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--data)_40%,transparent)] hover:text-[var(--data)] ${activePage === "documents" ? activeRing : "hover:border-[var(--border)]"}`}
-        >
-          <FiLayers className="size-5" strokeWidth={2.25} />
-        </button>
+        {showDocuments ? (
+          <button
+            type="button"
+            onClick={() => navigateTo("/documents")}
+            title="Documents"
+            aria-label="Documents"
+            aria-current={activePage === "documents" ? "page" : undefined}
+            className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--data)_40%,transparent)] hover:text-[var(--data)] ${activePage === "documents" ? activeRing : "hover:border-[var(--border)]"}`}
+          >
+            <FiLayers className="size-5" strokeWidth={2.25} />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => navigateTo("/chat")}
@@ -55,16 +82,18 @@ export function WorkspaceAppBar({
         >
           <FiMessageSquare className="size-5" strokeWidth={2.25} />
         </button>
-        <button
-          type="button"
-          onClick={() => navigateTo("/settings")}
-          title="Settings"
-          aria-label="Settings"
-          aria-current={activePage === "settings" ? "page" : undefined}
-          className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--primary)_40%,transparent)] hover:text-[var(--primary)] ${activePage === "settings" ? activeRing : "hover:border-[var(--border)]"}`}
-        >
-          <FiSettings className="size-5" strokeWidth={2.25} />
-        </button>
+        {showSettings ? (
+          <button
+            type="button"
+            onClick={() => navigateTo("/settings")}
+            title="Settings"
+            aria-label="Settings"
+            aria-current={activePage === "settings" ? "page" : undefined}
+            className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--primary)_40%,transparent)] hover:text-[var(--primary)] ${activePage === "settings" ? activeRing : "hover:border-[var(--border)]"}`}
+          >
+            <FiSettings className="size-5" strokeWidth={2.25} />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}

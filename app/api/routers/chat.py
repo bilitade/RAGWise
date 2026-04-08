@@ -45,6 +45,24 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+def _friendly_stream_error(exc: BaseException) -> str:
+    """Avoid dumping raw OpenAI 401 bodies into the chat UI."""
+    text = str(exc)
+    lower = text.lower()
+    if (
+        "401" in text
+        or "invalid_api_key" in lower
+        or "incorrect api key" in lower
+        or "authenticationerror" in lower.replace(" ", "")
+    ):
+        return (
+            "OpenAI rejected the API key (invalid or expired). "
+            "Update it under Settings → Models & API, click Save, then send your message again. "
+            "If you only use a key in the server .env file, restart the API after changing it."
+        )
+    return text
+
+
 def _parse_uuid(value: str | None) -> UUID | None:
     if not value:
         return None
@@ -142,7 +160,7 @@ async def _stream_chat(
             extra["thread_id"] = str(persist_thread_id)
         yield _sse("done", extra)
     except Exception as exc:
-        yield _sse("error", {"error": str(exc)})
+        yield _sse("error", {"error": _friendly_stream_error(exc)})
     finally:
         if user:
             record_billable_request(user, db)

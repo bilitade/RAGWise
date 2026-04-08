@@ -236,10 +236,31 @@ function SectionCard({ title, children }: { title: string; children: React.React
   );
 }
 
+type SettingsConfigPayload = {
+  model_provider: string;
+  default_chat_model: string;
+  default_embed_model: string;
+  openai_api_key_configured: boolean;
+  openai_api_key_last4: string | null;
+  model_provider_options: string[];
+  openai_chat_model_options: string[];
+  openai_embed_model_options: string[];
+};
+
+function mergeOptionList(catalog: string[], current: string): string[] {
+  const t = current.trim();
+  if (!t || catalog.includes(t)) return catalog;
+  return [t, ...catalog];
+}
+
 function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | null) => void }) {
+  const [configReady, setConfigReady] = useState(false);
   const [modelProvider, setModelProvider] = useState("");
   const [chatModel, setChatModel] = useState("");
   const [embedModel, setEmbedModel] = useState("");
+  const [providerOptions, setProviderOptions] = useState<string[]>([]);
+  const [chatModelOptions, setChatModelOptions] = useState<string[]>([]);
+  const [embedModelOptions, setEmbedModelOptions] = useState<string[]>([]);
   const [apiKey, setApiKey] = useState("");
   const [configured, setConfigured] = useState(false);
   const [last4, setLast4] = useState<string | null>(null);
@@ -247,19 +268,18 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
   useEffect(() => {
     void (async () => {
       onNotify(null, null);
+      setConfigReady(false);
       try {
-        const c = await fetchJson<{
-          model_provider: string;
-          default_chat_model: string;
-          default_embed_model: string;
-          openai_api_key_configured: boolean;
-          openai_api_key_last4: string | null;
-        }>(`${API_BASE_URL}/api/settings/config`);
+        const c = await fetchJson<SettingsConfigPayload>(`${API_BASE_URL}/api/settings/config`);
         setModelProvider(c.model_provider);
         setChatModel(c.default_chat_model);
         setEmbedModel(c.default_embed_model);
         setConfigured(c.openai_api_key_configured);
         setLast4(c.openai_api_key_last4);
+        setProviderOptions(mergeOptionList(c.model_provider_options, c.model_provider));
+        setChatModelOptions(mergeOptionList(c.openai_chat_model_options, c.default_chat_model));
+        setEmbedModelOptions(mergeOptionList(c.openai_embed_model_options, c.default_embed_model));
+        setConfigReady(true);
       } catch (err) {
         onNotify(null, err instanceof Error ? err.message : "Failed to load config");
       }
@@ -282,19 +302,35 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
       });
       setApiKey("");
       onNotify("Configuration saved.", null);
-      const c = await fetchJson<{
-        openai_api_key_configured: boolean;
-        openai_api_key_last4: string | null;
-      }>(`${API_BASE_URL}/api/settings/config`);
+      const c = await fetchJson<SettingsConfigPayload>(`${API_BASE_URL}/api/settings/config`);
+      setModelProvider(c.model_provider);
+      setChatModel(c.default_chat_model);
+      setEmbedModel(c.default_embed_model);
       setConfigured(c.openai_api_key_configured);
       setLast4(c.openai_api_key_last4);
+      setProviderOptions(mergeOptionList(c.model_provider_options, c.model_provider));
+      setChatModelOptions(mergeOptionList(c.openai_chat_model_options, c.default_chat_model));
+      setEmbedModelOptions(mergeOptionList(c.openai_embed_model_options, c.default_embed_model));
     } catch (err) {
       onNotify(null, err instanceof Error ? err.message : "Save failed");
     }
   }
 
+  if (!configReady) {
+    return (
+      <SectionCard title="API credentials & defaults">
+        <p className="text-secondary text-sm">Loading configuration…</p>
+      </SectionCard>
+    );
+  }
+
   return (
     <SectionCard title="API credentials & defaults">
+      <p className="text-muted mb-4 max-w-2xl text-[13px] leading-snug">
+        Values saved here are stored in the database and take priority. If a value is not in the database, the API uses the matching environment
+        variable (e.g. <code className="font-mono text-[11px]">OPENAI_MODEL</code>, <code className="font-mono text-[11px]">MODEL_PROVIDER</code>,{" "}
+        <code className="font-mono text-[11px]">OPENAI_API_KEY</code> in <code className="font-mono text-[11px]">.env</code>).
+      </p>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4 lg:col-span-2">
           <div className="brand-elevated flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-sm">
@@ -306,28 +342,48 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
         </div>
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="text-secondary font-medium">Model provider</span>
-          <input
+          <select
             className="brand-input mt-1 rounded-xl px-4 py-2.5"
             value={modelProvider}
             onChange={(e) => setModelProvider(e.target.value)}
-            autoComplete="off"
-          />
+            aria-label="Model provider"
+          >
+            {providerOptions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="text-secondary font-medium">Default chat model</span>
-          <input
+          <select
             className="brand-input mt-1 rounded-xl px-4 py-2.5"
             value={chatModel}
             onChange={(e) => setChatModel(e.target.value)}
-          />
+            aria-label="Default chat model"
+          >
+            {chatModelOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
           <span className="text-secondary font-medium">Default embedding model</span>
-          <input
+          <select
             className="brand-input mt-1 rounded-xl px-4 py-2.5"
             value={embedModel}
             onChange={(e) => setEmbedModel(e.target.value)}
-          />
+            aria-label="Default embedding model"
+          >
+            {embedModelOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
           <span className="text-secondary font-medium">OpenAI API key</span>
@@ -337,8 +393,13 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             autoComplete="new-password"
-            placeholder="••••••••"
+            placeholder="sk-…"
           />
+          <p className="text-muted max-w-xl text-[12px] leading-snug">
+            A key saved here is stored in the database and overrides <code className="font-mono text-[11px]">OPENAI_API_KEY</code> in the process
+            on each request. Paste a full key and click Save. If you only use <code className="font-mono text-[11px]">.env</code>, restart the API
+            after changing it.
+          </p>
         </label>
       </div>
       <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-5">
