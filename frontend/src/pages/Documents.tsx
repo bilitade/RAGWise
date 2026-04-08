@@ -1,21 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  FiActivity,
   FiDownload,
   FiFileText,
+  FiLayers,
+  FiMessageSquare,
+  FiMoon,
   FiRefreshCw,
   FiSearch,
+  FiSettings,
+  FiSun,
   FiTrash2,
   FiUploadCloud,
 } from "react-icons/fi";
 
-import type {
-  DocumentsTab,
-  IngestionJob,
-  ManagedDocument,
-  RetrievalMode,
-  RetrievalResult,
-} from "../types";
+import type { DocumentsTab, IngestionJob, ManagedDocument, RetrievalMode, RetrievalResult, ThemeMode } from "../types";
 import {
   API_BASE_URL,
   downloadDocumentFile,
@@ -25,14 +23,83 @@ import {
   getDocumentBadge,
   getJobSummary,
   getStatusClass,
+  navigateTo,
 } from "../utils";
+import BrandWordmark from "../components/BrandWordmark";
+
+const DOC_NAV: {
+  id: DocumentsTab;
+  title: string;
+  hint: string;
+  icon: React.ReactNode;
+  group: string;
+}[] = [
+  {
+    id: "files",
+    title: "Files",
+    hint: "Uploads, download, delete",
+    icon: <FiFileText className="text-lg" />,
+    group: "Sources",
+  },
+  {
+    id: "ingestion",
+    title: "Ingestion",
+    hint: "Queue jobs & track progress",
+    icon: <FiUploadCloud className="text-lg" />,
+    group: "Sources",
+  },
+  {
+    id: "search",
+    title: "Search",
+    hint: "Test retrieval before chat",
+    icon: <FiSearch className="text-lg" />,
+    group: "Retrieval",
+  },
+];
+
+function navMeta(tab: DocumentsTab) {
+  const item = DOC_NAV.find((n) => n.id === tab);
+  return (
+    item ?? {
+      id: "files" as DocumentsTab,
+      title: "Workspace",
+      hint: "Manage your knowledge base",
+      group: "Knowledge base",
+      icon: <FiLayers className="text-lg" />,
+    }
+  );
+}
+
+function DocSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="brand-card rounded-[24px] p-6 sm:p-8">
+      <div className="border-b border-[var(--border)] pb-5">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="text-secondary mt-1.5 max-w-3xl text-sm leading-relaxed">{description}</p>
+      </div>
+      <div className="pt-6">{children}</div>
+    </section>
+  );
+}
 
 export default function Documents({
   activeTab,
   onTabChange,
+  theme,
+  setTheme,
 }: {
   activeTab: DocumentsTab;
   onTabChange: (tab: DocumentsTab) => void;
+  theme: ThemeMode;
+  setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
 }) {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [documents, setDocuments] = useState<ManagedDocument[]>([]);
@@ -47,6 +114,8 @@ export default function Documents({
   const [retrievalQuery, setRetrievalQuery] = useState("");
   const [retrievalLoading, setRetrievalLoading] = useState(false);
   const [retrievalResults, setRetrievalResults] = useState<RetrievalResult[]>([]);
+
+  const meta = useMemo(() => navMeta(activeTab), [activeTab]);
 
   useEffect(() => {
     void loadDocuments();
@@ -243,34 +312,36 @@ export default function Documents({
     }
   }
 
-  const filesSection = (
-    <section className="brand-card rounded-[28px] p-5 sm:p-6">
-      <div className="mb-5 flex items-center gap-3">
-        <div className="brand-elevated rounded-2xl p-3">
-          <FiFileText className="text-lg status-data" />
-        </div>
-        <div>
-          <h2 className="text-xl font-medium">Files</h2>
-          <p className="text-sm text-secondary">List existing files and manage delete or reindex operations.</p>
-        </div>
-      </div>
+  const groupedNav = useMemo(() => {
+    const groups: Record<string, typeof DOC_NAV> = {};
+    for (const item of DOC_NAV) {
+      if (!groups[item.group]) groups[item.group] = [];
+      groups[item.group].push(item);
+    }
+    return groups;
+  }, []);
 
+  const filesSection = (
+    <DocSection
+      title="Library"
+      description="Everything under your upload directory. Stale means the file changed since it was last embedded — reindex to refresh vectors and BM25."
+    >
       <div className="grid gap-3">
         {documentsLoading ? (
-          <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">Loading documents...</div>
+          <div className="brand-elevated rounded-2xl px-4 py-8 text-center text-sm text-secondary">Loading documents…</div>
         ) : documents.length ? (
           documents.map((document) => (
-            <div key={document.document_id} className="brand-elevated rounded-3xl p-4">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div key={document.document_id} className="brand-elevated rounded-2xl p-4 sm:p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-sm font-medium">{document.filename}</h3>
-                    <span className={`text-xs uppercase tracking-[0.18em] ${getDocumentBadge(document)}`}>
+                    <h3 className="font-semibold">{document.filename}</h3>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${getDocumentBadge(document)}`}>
                       {document.status}
                     </span>
                   </div>
-                  <p className="mt-2 break-all text-xs text-muted">{document.relative_path}</p>
-                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-secondary">
+                  <p className="text-muted mt-2 break-all font-mono text-xs">{document.relative_path}</p>
+                  <div className="text-secondary mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
                     <span>{formatBytes(document.size_bytes)}</span>
                     <span>Modified {formatDate(document.modified_at)}</span>
                     <span>Indexed {formatDate(document.indexed_at)}</span>
@@ -281,214 +352,333 @@ export default function Documents({
                   <button
                     type="button"
                     onClick={() => void handleDownload(document)}
-                    className="brand-secondary rounded-2xl px-3 py-2 text-xs font-medium"
+                    className="brand-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
                   >
-                    <span className="flex items-center gap-2">
-                      <FiDownload />
-                      Download
-                    </span>
+                    <FiDownload />
+                    Download
                   </button>
                   <button
+                    type="button"
                     onClick={() => void handleReindex(document.document_id)}
-                    className="brand-secondary rounded-2xl px-3 py-2 text-xs font-medium"
+                    className="brand-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
                   >
-                    <span className="flex items-center gap-2">
-                      <FiRefreshCw />
-                      Reindex
-                    </span>
+                    <FiRefreshCw />
+                    Reindex
                   </button>
                   <button
+                    type="button"
                     onClick={() => void handleDelete(document.document_id)}
-                    className="rounded-2xl border px-3 py-2 text-xs font-medium"
-                    style={{ color: "var(--error)", borderColor: "var(--border)" }}
+                    className="flex items-center gap-2 rounded-xl border border-[color-mix(in_srgb,var(--error)_35%,transparent)] px-3 py-2 text-xs font-medium text-[var(--error)] hover:bg-[color-mix(in_srgb,var(--error)_8%,transparent)]"
                   >
-                    <span className="flex items-center gap-2">
-                      <FiTrash2 />
-                      Delete
-                    </span>
+                    <FiTrash2 />
+                    Delete
                   </button>
                 </div>
               </div>
             </div>
           ))
         ) : (
-          <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">
-            No documents are available yet. Upload a file to begin.
+          <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">
+            No files yet. Use <strong className="text-[var(--text-primary)]">Ingestion</strong> to upload, or drop files in your server upload folder if configured.
           </div>
         )}
       </div>
-    </section>
+    </DocSection>
   );
 
   const ingestionSection = (
-    <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-      <section className="brand-card rounded-[28px] p-5 sm:p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="brand-elevated rounded-2xl p-3">
-            <FiUploadCloud className="text-lg status-data" />
+    <div className="space-y-8">
+      <DocSection
+        title="Queue ingestion"
+        description="Upload-only stores raw files. Upload + ingest parses, chunks, embeds, and writes to Qdrant. Reingest all rebuilds the collection from every file in the library (use after bulk changes)."
+      >
+        {actionMessage ? (
+          <div className="mb-4 rounded-2xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] px-4 py-3 text-sm status-success">
+            {actionMessage}
           </div>
-          <div>
-            <h2 className="text-xl font-medium">Ingestion</h2>
-            <p className="text-sm text-secondary">Upload files, ingest a single file, or reingest existing documents.</p>
+        ) : null}
+        {actionError ? (
+          <div className="mb-4 rounded-2xl border border-[color-mix(in_srgb,var(--error)_45%,transparent)] bg-[color-mix(in_srgb,var(--error)_10%,transparent)] px-4 py-3 text-sm status-error">
+            {actionError}
           </div>
+        ) : null}
+
+        <input
+          type="file"
+          multiple
+          onChange={(event) => setSelectedFiles(event.target.files)}
+          className="surface-input w-full rounded-2xl px-4 py-4 text-sm"
+        />
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => void handleUpload()}
+            disabled={uploading || !selectedFiles?.length}
+            className="brand-secondary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {uploading ? "Uploading…" : "Upload only"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleUploadAndIngest()}
+            disabled={uploadingAndIngesting || !selectedFiles?.length}
+            className="brand-gradient rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {uploadingAndIngesting ? "Queueing…" : "Upload & ingest"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleIngestAll()}
+            disabled={bulkIngesting}
+            className="brand-primary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {bulkIngesting ? "Queueing…" : "Reingest all files"}
+          </button>
         </div>
+      </DocSection>
 
-        <div className="flex flex-col gap-4">
-          {actionMessage ? (
-            <div className="brand-elevated rounded-2xl px-4 py-3 text-sm status-success">{actionMessage}</div>
-          ) : null}
-          {actionError ? (
-            <div className="brand-elevated rounded-2xl px-4 py-3 text-sm status-error">{actionError}</div>
-          ) : null}
-
-          <input
-            type="file"
-            multiple
-            onChange={(event) => setSelectedFiles(event.target.files)}
-            className="surface-input rounded-3xl px-4 py-4 text-sm"
-          />
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleUpload}
-              disabled={uploading || !selectedFiles?.length}
-              className="brand-secondary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {uploading ? "Uploading..." : "Upload only"}
-            </button>
-            <button
-              onClick={handleUploadAndIngest}
-              disabled={uploadingAndIngesting || !selectedFiles?.length}
-              className="brand-gradient rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {uploadingAndIngesting ? "Queueing..." : "Upload and ingest"}
-            </button>
-            <button
-              onClick={handleIngestAll}
-              disabled={bulkIngesting}
-              className="brand-primary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {bulkIngesting ? "Queueing..." : "Reingest all"}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="brand-card rounded-[28px] p-5 sm:p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="brand-elevated rounded-2xl p-3">
-            <FiActivity className="text-lg status-success" />
-          </div>
-          <div>
-            <h2 className="text-xl font-medium">Ingestion jobs</h2>
-            <p className="text-sm text-secondary">Track chunking, embeddings, and indexing progress.</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <div className="brand-elevated rounded-[28px] p-4">
-            <div className="mb-3 flex items-center justify-between gap-4">
+      <DocSection
+        title="Active job"
+        description="Polls the Celery task until completion. For advanced chunk options (Pro/Admin), use the API with chunk_size and chunk_overlap query parameters."
+      >
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="brand-elevated rounded-2xl p-5">
+            <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <div className={`text-sm font-medium ${getStatusClass(activeStage)}`}>
-                  {jobSummary.title}
-                </div>
-                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">{jobSummary.status}</div>
+                <div className={`text-sm font-semibold ${getStatusClass(activeStage)}`}>{jobSummary.title}</div>
+                <div className="text-muted mt-1 text-[10px] uppercase tracking-[0.2em]">{jobSummary.status}</div>
               </div>
-              <div className="text-sm text-secondary">{jobSummary.progress}%</div>
+              <div className="text-secondary text-sm tabular-nums">{jobSummary.progress}%</div>
             </div>
             <div className="progress-track h-2 rounded-full">
               <div className="progress-fill h-2 rounded-full transition-all" style={{ width: `${jobSummary.progress}%` }} />
             </div>
-            {activeJob?.task_id ? <div className="mt-3 text-xs text-muted">Job ID {activeJob.task_id}</div> : null}
+            {activeJob?.task_id ? (
+              <div className="text-muted mt-4 font-mono text-[11px]">Task {activeJob.task_id}</div>
+            ) : (
+              <p className="text-secondary mt-4 text-sm">No job yet — start an ingest above.</p>
+            )}
             {activeJob?.failed && activeJob.error ? <div className="mt-3 text-sm status-error">{activeJob.error}</div> : null}
           </div>
 
-          <div className="brand-elevated rounded-[28px] px-4 py-4">
-            <div className="text-xs uppercase tracking-[0.18em] text-muted">Current step</div>
-            <div className="mt-2 text-lg font-medium">{jobSummary.title}</div>
-            <p className="mt-2 text-sm leading-6 text-secondary">{jobSummary.detail}</p>
-            <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+          <div className="brand-elevated rounded-2xl p-5">
+            <div className="text-muted text-[10px] font-semibold uppercase tracking-[0.2em]">Detail</div>
+            <div className="mt-2 text-lg font-semibold">{jobSummary.title}</div>
+            <p className="text-secondary mt-2 text-sm leading-relaxed">{jobSummary.detail}</p>
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-4 text-sm">
               <span className="text-secondary">{jobSummary.nextLabel}</span>
               <span className={getStatusClass(activeStage)}>{jobSummary.status}</span>
             </div>
           </div>
         </div>
-      </section>
+      </DocSection>
     </div>
   );
 
-  const searchSection = (
-    <section className="brand-card rounded-[28px] p-5 sm:p-6">
-      <div className="mb-5 flex items-center gap-3">
-        <div className="brand-elevated rounded-2xl p-3">
-          <FiSearch className="text-lg status-data" />
-        </div>
-        <div>
-          <h2 className="text-xl font-medium">Search</h2>
-          <p className="text-sm text-secondary">Run similarity, BM25, or hybrid retrieval.</p>
-        </div>
-      </div>
+  const searchModes: { id: RetrievalMode; label: string; desc: string }[] = [
+    { id: "similarity", label: "Vector (similarity)", desc: "Dense embeddings — best for paraphrases and meaning." },
+    { id: "bm25", label: "BM25 (lexical)", desc: "Keyword overlap — best for exact terms and SKUs. Requires Pro/Admin." },
+    { id: "advanced", label: "Hybrid", desc: "Fuses vector + BM25. Requires Pro/Admin." },
+  ];
 
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          {(["similarity", "bm25", "advanced"] as RetrievalMode[]).map((mode) => (
+  const searchSection = (
+    <DocSection
+      title="Retrieval playground"
+      description="Same backends as production chat tools. Sign in with a Pro or Admin account to unlock BM25 and hybrid. Normal users: similarity only."
+    >
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <div className="flex min-w-[200px] flex-col gap-2 lg:w-56">
+          <span className="text-muted text-[10px] font-semibold uppercase tracking-[0.2em]">Mode</span>
+          {searchModes.map((m) => (
             <button
-              key={mode}
-              onClick={() => setRetrievalMode(mode)}
-              className={`rounded-full px-4 py-2 text-sm font-medium ${
-                retrievalMode === mode ? "brand-pill-active" : "brand-pill"
+              key={m.id}
+              type="button"
+              onClick={() => setRetrievalMode(m.id)}
+              className={`rounded-2xl border px-4 py-3 text-left text-sm transition-colors ${
+                retrievalMode === m.id
+                  ? "border-[color-mix(in_srgb,var(--primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] shadow-[inset_3px_0_0_0_var(--primary)]"
+                  : "border-transparent hover:bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)]"
               }`}
             >
-              {mode === "bm25" ? "BM25" : mode === "advanced" ? "Hybrid" : "Similarity"}
+              <span className="font-semibold">{m.label}</span>
+              <span className="text-muted mt-1 block text-xs leading-snug">{m.desc}</span>
             </button>
           ))}
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            value={retrievalQuery}
-            onChange={(event) => setRetrievalQuery(event.target.value)}
-            placeholder="Search policies, products, FAQs, or procedures"
-            className="surface-input min-w-0 flex-1 rounded-3xl px-4 py-4 text-sm"
-          />
-          <button
-            onClick={handleRetrieval}
-            disabled={retrievalLoading}
-            className="brand-primary rounded-2xl px-5 py-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {retrievalLoading ? "Searching..." : "Search"}
-          </button>
-        </div>
+        <div className="min-w-0 flex-1 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              value={retrievalQuery}
+              onChange={(event) => setRetrievalQuery(event.target.value)}
+              placeholder="Ask what a customer might ask…"
+              className="surface-input min-w-0 flex-1 rounded-2xl px-4 py-3.5 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleRetrieval();
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => void handleRetrieval()}
+              disabled={retrievalLoading}
+              className="brand-primary shrink-0 rounded-2xl px-6 py-3.5 text-sm font-semibold disabled:opacity-50"
+            >
+              {retrievalLoading ? "Searching…" : "Run search"}
+            </button>
+          </div>
 
-        <div className="grid gap-3">
-          {retrievalResults.length ? (
-            retrievalResults.map((result) => (
-              <div key={result.node_id} className="brand-elevated rounded-3xl p-4">
-                <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.18em] text-muted">
-                  <span>{String(result.metadata.filename ?? result.source)}</span>
-                  <span className="status-data">{result.score.toFixed(4)}</span>
+          <div className="grid gap-3">
+            {retrievalResults.length ? (
+              retrievalResults.map((result) => (
+                <div key={result.node_id} className="brand-elevated rounded-2xl p-4">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-muted font-medium uppercase tracking-wide">{String(result.metadata.filename ?? result.source)}</span>
+                    <span className="status-data font-mono tabular-nums">{result.score.toFixed(4)}</span>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed">{result.text}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {result.matched_by.map((item) => (
+                      <span key={`${result.node_id}-${item}`} className="brand-pill rounded-full px-3 py-1 text-[11px]">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <p className="mt-3 text-sm leading-7">{result.text}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {result.matched_by.map((item) => (
-                    <span key={`${result.node_id}-${item}`} className="brand-pill rounded-full px-3 py-1 text-xs">
-                      {item}
-                    </span>
-                  ))}
-                </div>
+              ))
+            ) : (
+              <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">
+                Results appear here. Ingest documents first, then try a query that should exist in your knowledge base.
               </div>
-            ))
-          ) : (
-            <div className="brand-elevated rounded-3xl px-4 py-6 text-sm text-secondary">
-              Search results will appear here once the knowledge base has indexed content.
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </section>
+    </DocSection>
   );
 
-  if (activeTab === "files") return filesSection;
-  if (activeTab === "ingestion") return ingestionSection;
-  return searchSection;
+  return (
+    <div className="documents-shell flex min-h-[calc(100vh-3rem)] flex-col gap-0 lg:flex-row lg:gap-0">
+      <aside className="flex w-full shrink-0 flex-col border-b border-[var(--border)] lg:w-[280px] lg:border-b-0 lg:border-r">
+        <div className="brand-card flex flex-col gap-4 rounded-none border-0 border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] p-5 lg:sticky lg:top-6 lg:mr-0 lg:rounded-[24px] lg:border lg:p-5">
+          <div>
+            <div className="flex items-center gap-2 text-[var(--data)]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_90%,transparent)]">
+                <FiLayers className="text-lg" />
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Workspace</span>
+            </div>
+            <div className="mt-3 min-w-0">
+              <BrandWordmark />
+            </div>
+            <p className="text-secondary mt-2 text-xs leading-relaxed">
+              Manage source files, run ingestion against Qdrant, and debug retrieval before chatting.
+            </p>
+          </div>
+
+          <nav className="flex flex-col gap-5" aria-label="Workspace sections">
+            {Object.entries(groupedNav).map(([groupLabel, items]) => (
+              <div key={groupLabel}>
+                <p className="text-muted mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.22em]">{groupLabel}</p>
+                <ul className="flex flex-col gap-1">
+                  {items.map((item) => {
+                    const active = activeTab === item.id;
+                    return (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => onTabChange(item.id)}
+                          className={`doc-nav-btn group flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
+                            active
+                              ? "border border-[color-mix(in_srgb,var(--primary)_35%,transparent)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] shadow-[inset_3px_0_0_0_var(--primary)]"
+                              : "border border-transparent hover:bg-[color-mix(in_srgb,var(--elevated)_85%,transparent)]"
+                          }`}
+                        >
+                          <span
+                            className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] ${
+                              active ? "text-[var(--primary)]" : "text-secondary group-hover:text-[var(--text-primary)]"
+                            }`}
+                          >
+                            {item.icon}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className={`block text-sm font-semibold ${active ? "text-[var(--text-primary)]" : ""}`}>{item.title}</span>
+                            <span className="text-muted mt-0.5 block text-[11px] leading-snug">{item.hint}</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </nav>
+
+          <div className="border-t border-[var(--border)] pt-4">
+            <button
+              type="button"
+              onClick={() => navigateTo("/chat")}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition-colors hover:bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)]"
+            >
+              <FiMessageSquare />
+              Open chat
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateTo("/settings")}
+              className="text-secondary mt-2 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm hover:text-[var(--text-primary)]"
+            >
+              <FiSettings />
+              Admin settings
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
+              className="text-secondary mt-2 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm"
+            >
+              {theme === "dark" ? <FiSun /> : <FiMoon />}
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </button>
+            <div className="text-muted mt-4 rounded-xl border border-[var(--border)] px-3 py-2 font-mono text-[10px] break-all">
+              <span className="text-secondary">API</span> {API_BASE_URL}
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div className="documents-main min-w-0 flex-1 px-0 pt-6 pb-10 lg:px-8 lg:pt-2 lg:pb-12">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <nav className="text-muted flex flex-wrap items-center gap-1.5 text-xs font-medium" aria-label="Breadcrumb">
+              <span className="rounded-md bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)] px-2 py-0.5">Knowledge base</span>
+              <span className="text-[var(--border)]">/</span>
+              <span className="text-secondary">{meta.group}</span>
+              <span className="text-[var(--border)]">/</span>
+              <span className="text-[var(--text-primary)]">{meta.title}</span>
+            </nav>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{meta.title}</h1>
+            <p className="text-secondary mt-2 max-w-2xl text-sm leading-relaxed">{meta.hint}</p>
+          </div>
+        </header>
+
+        {activeTab === "files" && (actionMessage || actionError) ? (
+          <div
+            className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
+              actionError
+                ? "border-[color-mix(in_srgb,var(--error)_45%,transparent)] bg-[color-mix(in_srgb,var(--error)_10%,transparent)]"
+                : "border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)]"
+            }`}
+          >
+            {actionError ? <span className="status-error">{actionError}</span> : <span className="status-success">{actionMessage}</span>}
+          </div>
+        ) : null}
+
+        <div className="space-y-8">
+          {activeTab === "files" ? filesSection : null}
+          {activeTab === "ingestion" ? ingestionSection : null}
+          {activeTab === "search" ? searchSection : null}
+        </div>
+      </div>
+    </div>
+  );
 }
