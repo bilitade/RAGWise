@@ -1,6 +1,13 @@
 export type ThemeMode = "dark" | "light";
 export type RetrievalMode = "similarity" | "bm25" | "advanced";
-export type AppRoute = "/" | "/documents" | "/chat";
+export type AppRoute = "/" | "/documents" | "/chat" | "/settings" | "/login";
+export type SettingsTab =
+    | "config"
+    | "users"
+    | "agents"
+    | "jobs"
+    | "usage"
+    | "logs";
 export type DocumentsTab = "files" | "ingestion" | "search";
 
 export type Stage = {

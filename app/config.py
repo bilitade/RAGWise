@@ -74,3 +74,33 @@ API_CORS_ORIGINS = [
 
 INGEST_CHUNK_SIZE = get_int_env("INGEST_CHUNK_SIZE", 512)
 INGEST_CHUNK_OVERLAP = get_int_env("INGEST_CHUNK_OVERLAP", 64)
+
+# --- Production: PostgreSQL & auth ---
+DATABASE_URL = get_env(
+    "DATABASE_URL",
+    "postgresql+psycopg2://rag:rag@localhost:5432/rag_deep_agent",
+)
+JWT_SECRET = get_env("JWT_SECRET", "change-me-in-production-use-long-random-string")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = get_int_env("JWT_EXPIRE_MINUTES", 60 * 24)
+
+# Fernet key for encrypting API keys at rest (url-safe base64, 32 bytes)
+SETTINGS_SECRET_KEY = get_env("SETTINGS_SECRET_KEY", "")
+
+REQUIRE_AUTH = get_env("REQUIRE_AUTH", "false").lower() in ("1", "true", "yes")
+
+INITIAL_ADMIN_EMAIL = get_env("INITIAL_ADMIN_EMAIL")
+INITIAL_ADMIN_PASSWORD = get_env("INITIAL_ADMIN_PASSWORD")
+
+# Rate limits (per calendar month, Redis-backed when REDIS available)
+CHUNK_SIZE_MIN = get_int_env("CHUNK_SIZE_MIN", 128)
+CHUNK_SIZE_MAX = get_int_env("CHUNK_SIZE_MAX", 4096)
+
+# Structured app logs (optional path for admin tail endpoint)
+APP_LOG_FILE = get_env("APP_LOG_FILE", str(PROJECT_ROOT / "logs" / "app.log"))
+
+# LangSmith (optional tracing / cost in UI)
+LANGCHAIN_TRACING_V2 = get_env("LANGCHAIN_TRACING_V2", "false").lower() in ("1", "true", "yes")
+LANGCHAIN_API_KEY = get_env("LANGCHAIN_API_KEY")
+LANGCHAIN_PROJECT = get_env("LANGCHAIN_PROJECT", "rag-deep-agent")
+LANGSMITH_WORKSPACE_ID = get_env("LANGSMITH_WORKSPACE_ID")

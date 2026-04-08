@@ -204,10 +204,17 @@ def load_documents_from_files(file_paths: list[Path]) -> list[Document]:
     return enriched_documents
 
 
-def build_nodes(documents: list[Document]):
+def build_nodes(
+    documents: list[Document],
+    *,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+) -> list:
+    cs = INGEST_CHUNK_SIZE if chunk_size is None else chunk_size
+    co = INGEST_CHUNK_OVERLAP if chunk_overlap is None else chunk_overlap
     splitter = SentenceSplitter(
-        chunk_size=INGEST_CHUNK_SIZE,
-        chunk_overlap=INGEST_CHUNK_OVERLAP,
+        chunk_size=cs,
+        chunk_overlap=co,
     )
     return splitter.get_nodes_from_documents(documents)
 
@@ -226,14 +233,20 @@ def persist_bm25_cache(nodes, cache_path: Path = BM25_CACHE_PATH) -> None:
             cache_file.write("\n")
 
 
-def rebuild_bm25_cache_from_files(file_paths: list[Path], cache_path: Path = BM25_CACHE_PATH) -> None:
+def rebuild_bm25_cache_from_files(
+    file_paths: list[Path],
+    cache_path: Path = BM25_CACHE_PATH,
+    *,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+) -> None:
     if not file_paths:
         if cache_path.exists():
             cache_path.unlink()
         return
 
     documents = load_documents_from_files(file_paths)
-    nodes = build_nodes(documents)
+    nodes = build_nodes(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     persist_bm25_cache(nodes, cache_path=cache_path)
 
 
@@ -243,6 +256,8 @@ def ingest_file_paths(
     recreate_collection: bool = False,
     replace_existing_documents: bool = False,
     progress_callback: ProgressCallback | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> IngestionResult:
     if not file_paths:
         raise ValueError("No files were provided for ingestion.")
@@ -262,6 +277,8 @@ def ingest_file_paths(
                     "files_requested": len(normalized_file_paths),
                     "recreate_collection": recreate_collection,
                     "replace_existing_documents": replace_existing_documents,
+                    "chunk_size": chunk_size,
+                    "chunk_overlap": chunk_overlap,
                 },
             )
         )
@@ -302,7 +319,7 @@ def ingest_file_paths(
                 details={"documents_loaded": len(documents)},
             )
         )
-        nodes = build_nodes(documents)
+        nodes = build_nodes(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         if not nodes:
             raise ValueError("No nodes were generated from the loaded documents.")
 
@@ -397,6 +414,9 @@ def ingest_documents(
     input_dir: str | Path | None = None,
     recreate_collection: bool = True,
     progress_callback: ProgressCallback | None = None,
+    *,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> IngestionResult:
     source_files = list_source_files(input_dir=input_dir)
     result = ingest_file_paths(
@@ -404,6 +424,8 @@ def ingest_documents(
         recreate_collection=recreate_collection,
         replace_existing_documents=not recreate_collection,
         progress_callback=progress_callback,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
     )
     return result.model_copy(update={"input_dir": str(Path(input_dir) if input_dir else UPLOAD_DIR)})
 

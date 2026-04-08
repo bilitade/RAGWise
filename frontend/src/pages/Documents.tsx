@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   FiActivity,
+  FiDownload,
   FiFileText,
   FiRefreshCw,
   FiSearch,
@@ -17,6 +18,7 @@ import type {
 } from "../types";
 import {
   API_BASE_URL,
+  downloadDocumentFile,
   fetchJson,
   formatBytes,
   formatDate,
@@ -155,7 +157,11 @@ export default function Documents({
     try {
       const job = await fetchJson<{ task_id: string; status: string }>(
         `${API_BASE_URL}/api/documents/ingest-all`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
       );
       setActiveJob({
         task_id: job.task_id,
@@ -182,6 +188,16 @@ export default function Documents({
       setActionMessage("Document deleted.");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Delete failed.");
+    }
+  }
+
+  async function handleDownload(document: ManagedDocument) {
+    setActionError(null);
+    try {
+      await downloadDocumentFile(document.document_id, document.filename);
+      setActionMessage(`Download started: ${document.filename}`);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Download failed.");
     }
   }
 
@@ -262,6 +278,16 @@ export default function Documents({
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleDownload(document)}
+                    className="brand-secondary rounded-2xl px-3 py-2 text-xs font-medium"
+                  >
+                    <span className="flex items-center gap-2">
+                      <FiDownload />
+                      Download
+                    </span>
+                  </button>
                   <button
                     onClick={() => void handleReindex(document.document_id)}
                     className="brand-secondary rounded-2xl px-3 py-2 text-xs font-medium"

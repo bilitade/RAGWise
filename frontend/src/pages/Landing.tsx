@@ -55,7 +55,7 @@ export default function Landing() {
           <div className="heading-kicker text-xs font-medium uppercase">What It Provides</div>
           <h2 className="brand-title mt-3 text-2xl font-medium sm:text-3xl">Core features for operational knowledge systems</h2>
           <p className="mt-3 text-sm leading-7 text-secondary">
-            RAGenius is designed to keep the workflow direct: ingest, retrieve, monitor, and answer.
+            RAGWise is designed to keep the workflow direct: ingest, retrieve, monitor, and answer.
           </p>
         </div>
 

@@ -70,6 +70,8 @@ def test_ingestion_task_runs_in_background_and_reports_stage_status(
         input_dir: Path | None = None,
         recreate_collection: bool = True,
         progress_callback=None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
     ) -> IngestionResult:
         for stage in [
             IngestionStage(

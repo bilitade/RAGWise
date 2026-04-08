@@ -60,3 +60,9 @@ class ChatTurn(BaseModel):
 
 class ChatStreamRequest(BaseModel):
     messages: list[ChatTurn] = Field(default_factory=list)
+    persona_id: str | None = None
+
+
+class IngestAllRequest(BaseModel):
+    chunk_size: int | None = None
+    chunk_overlap: int | None = None

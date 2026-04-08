@@ -1,10 +1,26 @@
+import logging
 from pathlib import Path
 
 from celery.result import AsyncResult
 
 from app.documents.service import ingest_all_documents, ingest_single_document, reindex_document
+from app.db.session import SessionLocal
 from app.ingestion.loader import IngestionStage, ingest_documents
+from app.services.runtime_config import apply_openai_env_from_db
 from app.worker.celery_app import celery_app
+
+_log = logging.getLogger(__name__)
+
+
+def _apply_runtime_env() -> None:
+    try:
+        db = SessionLocal()
+        try:
+            apply_openai_env_from_db(db)
+        finally:
+            db.close()
+    except Exception as exc:
+        _log.warning("Celery runtime OpenAI config skipped (using process env): %s", exc)
 
 
 def _build_task_meta(
@@ -59,7 +75,11 @@ def ingest_documents_task(
     self,
     input_dir: str | None = None,
     recreate_collection: bool = True,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> dict:
+    _apply_runtime_env()
+
     def runner(progress_callback):
         if input_dir:
             input_path = Path(input_dir)
@@ -67,13 +87,21 @@ def ingest_documents_task(
                 return ingest_single_document(
                     input_path,
                     progress_callback=progress_callback,
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap,
                 )
             return ingest_documents(
                 input_dir=input_path,
                 recreate_collection=recreate_collection,
                 progress_callback=progress_callback,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
             )
-        return ingest_all_documents(progress_callback=progress_callback)
+        return ingest_all_documents(
+            progress_callback=progress_callback,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
 
     return _run_ingestion_task(
         self,
@@ -83,13 +111,22 @@ def ingest_documents_task(
 
 
 @celery_app.task(bind=True, name="app.ingestion.tasks.reindex_document_task")
-def reindex_document_task(self, document_id: str) -> dict:
+def reindex_document_task(
+    self,
+    document_id: str,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+) -> dict:
+    _apply_runtime_env()
+
     return _run_ingestion_task(
         self,
         task_name="Document reindex task",
         runner=lambda progress_callback: reindex_document(
             document_id,
             progress_callback=progress_callback,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
         ),
     )
 

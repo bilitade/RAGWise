@@ -19,7 +19,7 @@ import {
 } from "react-icons/fi";
 
 import type { ChatConversation, ChatMessage, ThemeMode } from "../types";
-import { API_BASE_URL, navigateTo } from "../utils";
+import { API_BASE_URL, buildAuthHeaders, navigateTo } from "../utils";
 import AssistantMessageBody from "../components/AssistantMessageBody";
 import BrandWordmark from "../components/BrandWordmark";
 
@@ -177,6 +177,8 @@ export default function Chat({
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatStatus, setChatStatus] = useState("Ready");
   const [chatActivity, setChatActivity] = useState<string[]>([]);
+  const [personas, setPersonas] = useState<{ id: string; name: string; description: string }[]>([]);
+  const [personaId, setPersonaId] = useState("");
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -190,6 +192,13 @@ export default function Chat({
   useEffect(() => {
     bottomAnchorRef.current?.scrollIntoView({ block: "end" });
   }, [chatMessages, chatStreaming]);
+
+  useEffect(() => {
+    void fetch(`${API_BASE_URL}/api/personas`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setPersonas(Array.isArray(data) ? data : []))
+      .catch(() => setPersonas([]));
+  }, []);
 
   function updateActiveConversation(updater: (conversation: ChatConversation) => ChatConversation) {
     setConversations((current) =>
@@ -237,8 +246,11 @@ export default function Chat({
     try {
       const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
+        headers: buildAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          messages: nextMessages,
+          persona_id: personaId || null,
+        }),
       });
       if (!response.ok || !response.body) {
         throw new Error(await response.text());
@@ -372,6 +384,13 @@ export default function Chat({
               <FiMessageSquare />
               Chat
             </button>
+            <button
+              type="button"
+              onClick={() => navigateTo("/settings")}
+              className="brand-secondary flex items-center gap-2 rounded-[14px] px-3 py-2 text-sm"
+            >
+              Settings
+            </button>
           </div>
         </div>
 
@@ -441,6 +460,23 @@ export default function Chat({
             </div>
           </div>
 
+          {personas.length ? (
+            <label className="mb-3 flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:gap-3">
+              <span className="text-secondary shrink-0">Agent persona</span>
+              <select
+                className="brand-input max-w-md rounded-xl px-3 py-2 text-sm"
+                value={personaId}
+                onChange={(e) => setPersonaId(e.target.value)}
+              >
+                <option value="">Default (built-in prompt)</option>
+                {personas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <div className="brand-elevated chat-shell flex min-h-0 flex-1 flex-col rounded-[20px] p-3">
             {/* ── Transcript ── */}

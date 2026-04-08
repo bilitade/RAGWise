@@ -9,7 +9,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "alembic>=1.14.0",
+    "bcrypt>=4.2.0",
     "celery[redis]>=5.6.0",
+    "cryptography>=44.0.0",
+    "email-validator>=2.2.0",
+    "psycopg2-binary>=2.9.10",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart==0.0.22",
+    "redis>=5.0.3,<6.5",
+    "sqlalchemy>=2.0.36",
     "deepagents>=0.4.12",
     "fastapi==0.135.2",
     "llama-index-core==0.14.20",
@@ -19,9 +28,7 @@ dependencies = [
     "llama-index-vector-stores-qdrant==0.10.0",
     "langchain-openai>=1.1.12",
     "pymupdf>=1.24.0",
-    "python-multipart==0.0.22",
     "qdrant-client==1.17.1",
-    "redis>=5.0.3,<6.5",
     "tavily-python>=0.7.23",
     "uvicorn==0.41.0",
     "docx2txt>=0.9",

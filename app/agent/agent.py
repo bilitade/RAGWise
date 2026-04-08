@@ -34,15 +34,19 @@ def _build_query_from_messages(messages: list[dict[str, str]] | None, query: str
     return "\n".join(transcript)
 
 
-def build_agent():
+def build_agent(
+    *,
+    system_prompt: str | None = None,
+    model_name: str | None = None,
+):
     model = ChatOpenAI(
-        model=OPENAI_MODEL,
+        model=model_name or OPENAI_MODEL,
         streaming=True,
     )
     return create_deep_agent(
         name="research_agent",
         model=model,
-        system_prompt=agent_system_prompt,
+        system_prompt=system_prompt or agent_system_prompt,
         tools=[knowledge_base_search, internet_search],
     )
 
@@ -75,9 +79,11 @@ async def astream_agent_events(
     query: str | None = None,
     *,
     messages: list[dict[str, str]] | None = None,
+    system_prompt: str | None = None,
+    model_name: str | None = None,
 ) -> AsyncIterator[dict[str, str]]:
     compiled_query = _build_query_from_messages(messages, query)
-    agent = build_agent()
+    agent = build_agent(system_prompt=system_prompt, model_name=model_name)
 
     yield {"type": "status", "label": "Thinking"}
     yielded_token = False
@@ -125,9 +131,11 @@ def stream_agent_text(
     query: str | None = None,
     *,
     messages: list[dict[str, str]] | None = None,
+    system_prompt: str | None = None,
+    model_name: str | None = None,
 ) -> Iterator[str]:
     compiled_query = _build_query_from_messages(messages, query)
-    agent = build_agent()
+    agent = build_agent(system_prompt=system_prompt, model_name=model_name)
     for message_chunk, _metadata in agent.stream(
         {"messages": [HumanMessage(content=compiled_query)]},
         stream_mode="messages",

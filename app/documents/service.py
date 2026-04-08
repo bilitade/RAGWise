@@ -152,6 +152,8 @@ def ingest_single_document(
     file_path: str | Path,
     *,
     progress_callback: ProgressCallback | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> IngestionResult:
     resolved_path = Path(file_path).resolve()
     result = ingest_file_paths(
@@ -159,10 +161,14 @@ def ingest_single_document(
         recreate_collection=False,
         replace_existing_documents=True,
         progress_callback=progress_callback,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
     )
     _update_registry_for_paths([resolved_path], replace_all=False)
     rebuild_bm25_cache_from_files(
-        [Path(document.absolute_path) for document in list_documents() if document.indexed]
+        [Path(document.absolute_path) for document in list_documents() if document.indexed],
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
     )
     return result
 
@@ -170,14 +176,18 @@ def ingest_single_document(
 def ingest_all_documents(
     *,
     progress_callback: ProgressCallback | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> IngestionResult:
     result = ingest_documents(
         recreate_collection=True,
         progress_callback=progress_callback,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
     )
     file_paths = list_source_files()
     _update_registry_for_paths(file_paths, replace_all=True)
-    rebuild_bm25_cache_from_files(file_paths)
+    rebuild_bm25_cache_from_files(file_paths, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     return result
 
 
@@ -185,11 +195,15 @@ def reindex_document(
     document_id: str,
     *,
     progress_callback: ProgressCallback | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> IngestionResult:
     document = get_document_by_id(document_id)
     return ingest_single_document(
         document.absolute_path,
         progress_callback=progress_callback,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
     )
 
 
