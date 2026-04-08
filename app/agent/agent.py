@@ -13,6 +13,7 @@ from deepagents import create_deep_agent
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_openai import ChatOpenAI
 
+from app.agent.citations import citations_from_tool_output
 from app.agent.prompts import agent_system_prompt
 from app.agent.tools import internet_search, knowledge_base_search
 from app.config import OPENAI_MODEL
@@ -80,7 +81,7 @@ async def astream_agent_events(
     messages: list[dict[str, str]] | None = None,
     system_prompt: str | None = None,
     model_name: str | None = None,
-) -> AsyncIterator[dict[str, str]]:
+) -> AsyncIterator[dict[str, Any]]:
     agent = build_agent(system_prompt=system_prompt, model_name=model_name)
 
     if messages:
@@ -113,6 +114,10 @@ async def astream_agent_events(
             continue
 
         if event_name == "on_tool_end":
+            raw_out = event_data.get("output")
+            cite_items = citations_from_tool_output(runnable_name, raw_out)
+            if cite_items:
+                yield {"type": "citations", "items": cite_items}
             current_status = "Reasoning over results"
             yield {"type": "status", "label": current_status}
             continue

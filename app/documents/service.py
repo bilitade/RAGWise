@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.config import BM25_CACHE_PATH, UPLOAD_DIR
+from app.config import UPLOAD_DIR
 from app.db.models import Document as DocumentRow
 from app.db.qdrant import QdrantStore
 from app.ingestion.loader import (
@@ -157,11 +157,6 @@ def ingest_single_document(
         chunk_overlap=chunk_overlap,
     )
     _sync_documents_for_paths(db, [resolved_path], replace_all=False)
-    rebuild_bm25_cache_from_files(
-        [Path(document.absolute_path) for document in list_documents(db) if document.indexed],
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-    )
     return result
 
 
@@ -180,7 +175,6 @@ def ingest_all_documents(
     )
     file_paths = list_source_files()
     _sync_documents_for_paths(db, file_paths, replace_all=True)
-    rebuild_bm25_cache_from_files(file_paths, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     return result
 
 
@@ -215,21 +209,11 @@ def delete_document(db: Session, document_id: str) -> ManagedDocument:
     if file_path.exists():
         file_path.unlink()
 
-    indexed_file_paths = []
-    for item in list_documents(db):
-        if item.indexed:
-            indexed_file_paths.append(Path(item.absolute_path))
-    rebuild_bm25_cache_from_files(indexed_file_paths)
-
-    if not indexed_file_paths and BM25_CACHE_PATH.exists():
-        BM25_CACHE_PATH.unlink()
+    rebuild_bm25_cache_from_files(list_source_files())
 
     return document
 
 
 def sync_document_rows_after_paths(db: Session, paths: list[Path]) -> None:
-    """Update SQL document rows + BM25 cache after a raw `ingest_documents` (loader) run."""
+    """Update SQL document rows after a raw `ingest_documents` (loader) run. BM25 is rebuilt inside `ingest_file_paths`."""
     _sync_documents_for_paths(db, paths, replace_all=False)
-    rebuild_bm25_cache_from_files(
-        [Path(d.absolute_path) for d in list_documents(db) if d.indexed],
-    )

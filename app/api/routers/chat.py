@@ -3,11 +3,12 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.agent.agent import astream_agent_events
+from app.agent.citations import append_citations_footer, dedupe_citation_items
 from app.api.schemas import (
     ChatMessagesListResponse,
     ChatMessageResponse,
@@ -25,6 +26,7 @@ from app.services.chat_service import (
     append_message,
     apply_sliding_window,
     create_thread,
+    delete_thread_for_user,
     ephemeral_messages_windowed,
     get_thread_for_user,
     list_thread_messages,
@@ -111,6 +113,7 @@ async def _stream_chat(
     if LANGCHAIN_TRACING_V2:
         trace_hint = f"project={LANGCHAIN_PROJECT}"
     assistant_text: list[str] = []
+    all_citations: list[dict] = []
     try:
         async for event in astream_agent_events(
             messages=agent_messages,
@@ -123,11 +126,18 @@ async def _stream_chat(
                 yield _sse("token", {"text": chunk})
             elif event.get("type") == "status":
                 yield _sse("status", {"label": event["label"]})
+            elif event.get("type") == "citations":
+                batch = event.get("items")
+                if isinstance(batch, list) and batch:
+                    all_citations.extend(batch)
+                    yield _sse("citations", {"items": batch})
         extra: dict = {"status": "completed", "trace_hint": trace_hint}
         if persist_thread_id:
             text = "".join(assistant_text).strip()
-            if text:
-                append_message(db, persist_thread_id, role="assistant", content=text)
+            merged = dedupe_citation_items(all_citations)
+            body = append_citations_footer(text, merged)
+            if body:
+                append_message(db, persist_thread_id, role="assistant", content=body)
                 db.commit()
             extra["thread_id"] = str(persist_thread_id)
         yield _sse("done", extra)
@@ -192,6 +202,23 @@ def get_thread_messages(
         raise HTTPException(status_code=404, detail="Thread not found")
     rows = list_thread_messages(db, tid)
     return ChatMessagesListResponse(messages=[_message_to_response(r) for r in rows])
+
+
+@router.delete("/threads/{thread_id}", status_code=204)
+def delete_chat_thread(
+    thread_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(require_active_user),
+) -> Response:
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    tid = _parse_uuid(thread_id)
+    if not tid:
+        raise HTTPException(status_code=400, detail="Invalid thread id")
+    if not delete_thread_for_user(db, tid, user.id):
+        raise HTTPException(status_code=404, detail="Thread not found")
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.patch("/threads/{thread_id}", response_model=ChatThreadResponse)

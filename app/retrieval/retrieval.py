@@ -36,14 +36,16 @@ def _extract_node_text(node: Any) -> str:
 
 
 def _load_bm25_nodes(cache_path: Path = BM25_CACHE_PATH) -> list[TextNode]:
+    """Load lexical index nodes; empty if cache missing or empty (run ingestion to populate)."""
     if not cache_path.exists():
-        raise FileNotFoundError(
-            f"BM25 cache not found at {cache_path}. Run ingestion first."
-        )
+        return []
 
     nodes: list[TextNode] = []
     with cache_path.open(encoding="utf-8") as cache_file:
         for line in cache_file:
+            line = line.strip()
+            if not line:
+                continue
             payload = json.loads(line)
             nodes.append(
                 TextNode(
@@ -52,9 +54,6 @@ def _load_bm25_nodes(cache_path: Path = BM25_CACHE_PATH) -> list[TextNode]:
                     metadata=payload.get("metadata") or {},
                 )
             )
-
-    if not nodes:
-        raise ValueError(f"BM25 cache is empty: {cache_path}")
 
     return nodes
 
@@ -86,8 +85,11 @@ def similarity_search(query: str, top_k: int = 5) -> list[SearchResult]:
 
 
 def bm25_search(query: str, top_k: int = 5) -> list[SearchResult]:
+    nodes = _load_bm25_nodes()
+    if not nodes:
+        return []
     results = BM25Retriever.from_defaults(
-        nodes=_load_bm25_nodes(),
+        nodes=nodes,
         similarity_top_k=top_k,
     ).retrieve(query)
     return [_to_search_result(result, source="bm25") for result in results]
@@ -105,10 +107,14 @@ def hybrid_search(
     dense_results = _get_vector_index().as_retriever(
         similarity_top_k=vector_top_k,
     ).retrieve(query)
-    bm25_results = BM25Retriever.from_defaults(
-        nodes=_load_bm25_nodes(),
-        similarity_top_k=bm25_top_k,
-    ).retrieve(query)
+    bm25_nodes = _load_bm25_nodes()
+    if bm25_nodes:
+        bm25_results = BM25Retriever.from_defaults(
+            nodes=bm25_nodes,
+            similarity_top_k=bm25_top_k,
+        ).retrieve(query)
+    else:
+        bm25_results = []
 
     fused: dict[str, dict[str, Any]] = {}
     retrieval_sets = (

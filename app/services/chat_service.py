@@ -39,6 +39,15 @@ def get_thread_for_user(db: Session, thread_id: uuid.UUID, user_id: uuid.UUID) -
     return row
 
 
+def delete_thread_for_user(db: Session, thread_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    thread = get_thread_for_user(db, thread_id, user_id)
+    if thread is None:
+        return False
+    db.delete(thread)
+    db.flush()
+    return True
+
+
 def list_threads_for_user(db: Session, user_id: uuid.UUID) -> list[ChatThreadRow]:
     return list(
         db.scalars(

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FiMoon, FiSun } from "react-icons/fi";
 
 import type { AppRoute, DocumentsTab, SettingsTab, ThemeMode } from "./types";
-import { getCurrentRoute, navigateTo } from "./utils";
+import { getCurrentRoute, navigateTo, readThemePreference, writeThemePreference } from "./utils";
 import BrandWordmark from "./components/BrandWordmark";
 import { WorkspaceAppBar, type WorkspaceAppPage } from "./components/WorkspaceChrome";
 import Landing from "./pages/Landing";
@@ -12,13 +12,14 @@ import Login from "./pages/Login";
 import Settings from "./pages/Settings";
 
 export default function App() {
-  const [theme, setTheme] = useState<ThemeMode>("dark");
+  const [theme, setTheme] = useState<ThemeMode>(() => readThemePreference());
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute());
   const [documentsTab, setDocumentsTab] = useState<DocumentsTab>("files");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("config");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    writeThemePreference(theme);
   }, [theme]);
 
   useEffect(() => {

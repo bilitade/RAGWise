@@ -12,17 +12,20 @@ import {
   FiPlus,
   FiSend,
   FiSquare,
+  FiTrash2,
   FiXCircle,
 } from "react-icons/fi";
 
-import type { ChatContextWindow, ChatConversation, ChatMessage } from "../types";
+import type { ChatContextWindow, ChatCitation, ChatConversation, ChatMessage } from "../types";
 import {
   API_BASE_URL,
   buildAuthHeaders,
   CHAT_SIDEBAR_KEY,
   getAccessToken,
   isServerChatThreadId,
+  mergeCitationLists,
   readSidebarPreference,
+  splitMessageCitations,
   writeSidebarPreference,
 } from "../utils";
 import AssistantMessageBody from "../components/AssistantMessageBody";
@@ -157,10 +160,43 @@ function InlineStatusPlaceholder({
   );
 }
 
+function ChatMessagesSkeleton() {
+  return (
+    <div className="flex min-h-[12rem] flex-col gap-3 py-2" aria-busy="true" aria-label="Loading messages">
+      <div className="text-muted flex items-center gap-2 text-xs">
+        <FiClock className="size-3.5 animate-pulse" strokeWidth={2.25} />
+        <span>Loading conversation…</span>
+      </div>
+      {[0.92, 0.78, 0.65].map((w, i) => (
+        <div
+          key={i}
+          className="h-14 max-w-[min(100%,85%)] animate-pulse rounded-2xl bg-[color-mix(in_srgb,var(--border)_55%,var(--elevated)_45%)]"
+          style={{ width: `${w * 100}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+async function fetchThreadMessages(threadId: string): Promise<ChatMessage[]> {
+  const res = await fetch(`${API_BASE_URL}/api/chat/threads/${threadId}/messages`, {
+    headers: buildAuthHeaders(),
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { messages: { role: string; content: string }[] };
+  return (data.messages ?? []).map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: m.content,
+  }));
+}
+
 export default function Chat() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState("");
   const [threadsLoaded, setThreadsLoaded] = useState(false);
+  /** True while fetching messages for the active thread (initial load or switching threads). */
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const threadMessagesFetchId = useRef(0);
   const [chatInput, setChatInput] = useState("");
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatStatus, setChatStatus] = useState("Ready");
@@ -174,6 +210,12 @@ export default function Chat() {
   const [chatSidebarOpen, setChatSidebarOpen] = useState(() => readSidebarPreference(CHAT_SIDEBAR_KEY));
   const recognitionRef = useRef<any>(null);
   const bottomAnchorRef = useRef<HTMLDivElement | null>(null);
+  /** Skip auto-scroll when the user switched threads; still scroll on same-thread updates (send/stream). */
+  const prevThreadIdRef = useRef<string | null>(null);
+  const conversationsRef = useRef(conversations);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   useEffect(() => {
     writeSidebarPreference(CHAT_SIDEBAR_KEY, chatSidebarOpen);
@@ -213,8 +255,11 @@ export default function Chat() {
   const chatMessages = activeConversation?.messages ?? [];
 
   useEffect(() => {
+    const prev = prevThreadIdRef.current;
+    prevThreadIdRef.current = activeConversationId;
+    if (prev !== null && prev !== activeConversationId) return;
     bottomAnchorRef.current?.scrollIntoView({ block: "end" });
-  }, [chatMessages, chatStreaming]);
+  }, [chatMessages, chatStreaming, activeConversationId]);
 
   useEffect(() => {
     void fetch(`${API_BASE_URL}/api/personas`)
@@ -224,19 +269,25 @@ export default function Chat() {
   }, []);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      const id = `local-${Date.now()}`;
-      setConversations([{ id, title: "New chat", messages: [], updatedAt: Date.now() }]);
-      setActiveConversationId(id);
-      setThreadsLoaded(true);
-      return;
-    }
+    let cancelled = false;
 
     void (async () => {
+      if (!getAccessToken()) {
+        const id = `local-${Date.now()}`;
+        setConversations([{ id, title: "New chat", messages: [], updatedAt: Date.now(), messagesHydrated: true }]);
+        setActiveConversationId(id);
+        setThreadsLoaded(true);
+        setMessagesLoading(false);
+        return;
+      }
+
       try {
         const listRes = await fetch(`${API_BASE_URL}/api/chat/threads`, { headers: buildAuthHeaders() });
         const listData = listRes.ok ? await listRes.json() : { threads: [] };
         const raw = Array.isArray(listData.threads) ? listData.threads : [];
+
+        let firstId: string;
+        let initial: ChatConversation[];
 
         if (raw.length === 0) {
           const createRes = await fetch(`${API_BASE_URL}/api/chat/threads`, {
@@ -244,37 +295,51 @@ export default function Chat() {
             headers: buildAuthHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({ context_window: "min" }),
           });
-          if (!createRes.ok) {
-            throw new Error(await createRes.text());
-          }
+          if (!createRes.ok) throw new Error(await createRes.text());
           const t = (await createRes.json()) as {
             id: string;
             title: string;
             updated_at?: string;
           };
           const updatedAt = t.updated_at ? Date.parse(t.updated_at) : Date.now();
-          setConversations([{ id: t.id, title: t.title, messages: [], updatedAt }]);
-          setActiveConversationId(t.id);
+          firstId = t.id;
+          initial = [{ id: t.id, title: t.title, messages: [], updatedAt, messagesHydrated: true }];
         } else {
-          const mapped: ChatConversation[] = raw.map(
-            (t: { id: string; title: string; updated_at?: string }) => ({
-              id: t.id,
-              title: t.title,
-              messages: [],
-              updatedAt: t.updated_at ? Date.parse(t.updated_at) : Date.now(),
-            }),
-          );
-          setConversations(mapped);
-          setActiveConversationId(mapped[0].id);
+          firstId = raw[0].id;
+          initial = raw.map((t: { id: string; title: string; updated_at?: string }) => ({
+            id: t.id,
+            title: t.title,
+            messages: [],
+            updatedAt: t.updated_at ? Date.parse(t.updated_at) : Date.now(),
+            messagesHydrated: false,
+          }));
         }
-      } catch {
-        const id = `local-${Date.now()}`;
-        setConversations([{ id, title: "New chat", messages: [], updatedAt: Date.now() }]);
-        setActiveConversationId(id);
-      } finally {
+
+        if (cancelled) return;
+        setConversations(initial);
+        setActiveConversationId(firstId);
         setThreadsLoaded(true);
+        setMessagesLoading(true);
+        const fetchId = ++threadMessagesFetchId.current;
+        const msgs = await fetchThreadMessages(firstId);
+        if (cancelled || fetchId !== threadMessagesFetchId.current) return;
+        setConversations((cur) =>
+          cur.map((c) => (c.id === firstId ? { ...c, messages: msgs, messagesHydrated: true } : c)),
+        );
+      } catch {
+        if (cancelled) return;
+        const id = `local-${Date.now()}`;
+        setConversations([{ id, title: "New chat", messages: [], updatedAt: Date.now(), messagesHydrated: true }]);
+        setActiveConversationId(id);
+        setThreadsLoaded(true);
+      } finally {
+        if (!cancelled) setMessagesLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function updateActiveConversation(updater: (conversation: ChatConversation) => ChatConversation) {
@@ -311,6 +376,7 @@ export default function Chat() {
           title: t.title,
           messages: [],
           updatedAt,
+          messagesHydrated: true,
         };
         setConversations((current) => [conversation, ...current]);
         setActiveConversationId(t.id);
@@ -321,6 +387,7 @@ export default function Chat() {
           title: "New chat",
           messages: [],
           updatedAt: Date.now(),
+          messagesHydrated: true,
         };
         setConversations((current) => [conversation, ...current]);
         setActiveConversationId(id);
@@ -334,6 +401,7 @@ export default function Chat() {
       title: "New chat",
       messages: [],
       updatedAt: Date.now(),
+      messagesHydrated: true,
     };
     setConversations((current) => [conversation, ...current]);
     setActiveConversationId(id);
@@ -344,24 +412,57 @@ export default function Chat() {
     setChatInput("");
     setChatStatus("Ready");
     setChatActivity([]);
-    if (!getAccessToken() || !isServerChatThreadId(id)) return;
+    if (!getAccessToken() || !isServerChatThreadId(id)) {
+      setMessagesLoading(false);
+      return;
+    }
+
+    const conv = conversationsRef.current.find((c) => c.id === id);
+    const silent = conv?.messagesHydrated === true;
+    const fetchId = ++threadMessagesFetchId.current;
+    if (!silent) setMessagesLoading(true);
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/chat/threads/${id}/messages`, {
-        headers: buildAuthHeaders(),
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as {
-        messages: { role: string; content: string }[];
-      };
-      const messages: ChatMessage[] = (data.messages ?? []).map((m) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: m.content,
-      }));
+      const messages = await fetchThreadMessages(id);
+      if (fetchId !== threadMessagesFetchId.current) return;
       setConversations((current) =>
-        current.map((c) => (c.id === id ? { ...c, messages, updatedAt: Date.now() } : c)),
+        current.map((c) => (c.id === id ? { ...c, messages, messagesHydrated: true } : c)),
       );
     } catch {
-      /* ignore */
+      if (fetchId === threadMessagesFetchId.current) {
+        setConversations((current) =>
+          current.map((c) => (c.id === id ? { ...c, messagesHydrated: true } : c)),
+        );
+      }
+    } finally {
+      if (fetchId === threadMessagesFetchId.current && !silent) setMessagesLoading(false);
+    }
+  }
+
+  async function deleteConversation(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    threadMessagesFetchId.current += 1;
+    if (getAccessToken() && isServerChatThreadId(id)) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/threads/${id}`, {
+          method: "DELETE",
+          headers: buildAuthHeaders(),
+        });
+        if (!res.ok) return;
+      } catch {
+        return;
+      }
+    }
+
+    const next = conversationsRef.current.filter((c) => c.id !== id);
+    setConversations(next);
+    setActiveConversationId((aid) => {
+      if (aid !== id) return aid;
+      return next[0]?.id ?? "";
+    });
+    if (next.length === 0) {
+      queueMicrotask(() => void createConversation());
     }
   }
 
@@ -376,7 +477,7 @@ export default function Chat() {
     updateActiveConversation((conversation) => ({
       ...conversation,
       title: buildConversationTitle(nextMessages),
-      messages: [...nextMessages, { role: "assistant", content: "" }],
+      messages: [...nextMessages, { role: "assistant", content: "", citations: [] }],
       updatedAt: Date.now(),
     }));
     setChatInput("");
@@ -424,32 +525,61 @@ export default function Chat() {
           const event = lines.find((line) => line.startsWith("event:"))?.replace("event:", "").trim();
           const dataLine = lines.find((line) => line.startsWith("data:"));
           if (!event || !dataLine) continue;
-          const payload = JSON.parse(dataLine.replace("data:", "").trim()) as Record<string, string>;
+          const payload = JSON.parse(dataLine.replace("data:", "").trim()) as Record<string, unknown>;
 
-          if (event === "token" && payload.text) {
+          if (event === "token" && typeof payload.text === "string" && payload.text) {
             updateActiveConversation((conversation) => {
               const updated = [...conversation.messages];
               const lastIndex = updated.length - 1;
+              const prev = updated[lastIndex];
               updated[lastIndex] = {
+                ...prev,
                 role: "assistant",
-                content: `${updated[lastIndex]?.content ?? ""}${payload.text}`,
+                content: `${prev?.content ?? ""}${payload.text}`,
               };
               return { ...conversation, messages: updated, updatedAt: Date.now() };
             });
           }
 
-          if (event === "status" && payload.label) {
-            setChatStatus(payload.label);
+          if (event === "citations" && Array.isArray(payload.items)) {
+            const parsed: ChatCitation[] = payload.items
+              .filter((x): x is Record<string, unknown> => x != null && typeof x === "object")
+              .map((x): ChatCitation => ({
+                kind: x.kind === "web" ? "web" : "knowledge_base",
+                label: String(x.label ?? ""),
+                detail: x.detail != null ? String(x.detail) : undefined,
+                url: x.url != null ? String(x.url) : undefined,
+                ref: x.ref != null ? String(x.ref) : undefined,
+              }))
+              .filter((c) => c.label.length > 0);
+            if (!parsed.length) continue;
+            updateActiveConversation((conversation) => {
+              const updated = [...conversation.messages];
+              const lastIndex = updated.length - 1;
+              const prev = updated[lastIndex];
+              updated[lastIndex] = {
+                ...prev,
+                role: "assistant",
+                citations: mergeCitationLists(prev?.citations ?? [], parsed),
+              };
+              return { ...conversation, messages: updated, updatedAt: Date.now() };
+            });
+          }
+
+          if (event === "status" && typeof payload.label === "string") {
+            const statusLabel = payload.label;
+            setChatStatus(statusLabel);
             setChatActivity((current) =>
-              current[current.length - 1] === payload.label ? current : [...current, payload.label],
+              current[current.length - 1] === statusLabel ? current : [...current, statusLabel],
             );
           }
 
-          if (event === "error" && payload.error) {
+          if (event === "error" && typeof payload.error === "string") {
             setChatStatus("Failed");
+            const errText = payload.error || "Chat failed.";
             updateActiveConversation((conversation) => {
               const updated = [...conversation.messages];
-              updated[updated.length - 1] = { role: "assistant", content: payload.error ?? "Chat failed." };
+              updated[updated.length - 1] = { role: "assistant", content: errText };
               return { ...conversation, messages: updated, updatedAt: Date.now() };
             });
           }
@@ -462,7 +592,9 @@ export default function Chat() {
             const tid = String((payload as Record<string, unknown>).thread_id);
             setConversations((current) =>
               current.map((c) =>
-                c.id === previousConversationId ? { ...c, id: tid, updatedAt: Date.now() } : c,
+                c.id === previousConversationId
+                  ? { ...c, id: tid, updatedAt: Date.now(), messagesHydrated: true }
+                  : c,
               ),
             );
             setActiveConversationId(tid);
@@ -561,21 +693,34 @@ export default function Chat() {
                 .map((conversation) => {
                   const active = conversation.id === activeConversationId;
                   return (
-                    <button
+                    <div
                       key={conversation.id}
-                      type="button"
-                      onClick={() => void selectConversation(conversation.id)}
-                      className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                      className={`flex min-w-0 items-stretch gap-1 rounded-xl border transition-colors ${
                         active
                           ? "border-[color-mix(in_srgb,var(--primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
                           : "border-transparent hover:bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
                       }`}
                     >
-                      <div className="truncate text-sm font-semibold">{conversation.title}</div>
-                      <div className="text-muted mt-1 line-clamp-2 text-[11px] leading-snug">
-                        {conversation.messages.at(-1)?.content || "No messages yet"}
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => void selectConversation(conversation.id)}
+                        className="min-w-0 flex-1 px-3 py-2.5 text-left"
+                      >
+                        <div className="truncate text-sm font-semibold">{conversation.title}</div>
+                        <div className="text-muted mt-1 line-clamp-2 text-[11px] leading-snug">
+                          {conversation.messages.at(-1)?.content || "No messages yet"}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => void deleteConversation(conversation.id, e)}
+                        className="text-muted hover:text-[var(--error)] shrink-0 self-start rounded-lg p-2.5 transition-colors"
+                        title="Delete conversation"
+                        aria-label={`Delete ${conversation.title}`}
+                      >
+                        <FiTrash2 className="size-4" strokeWidth={2.25} />
+                      </button>
+                    </div>
                   );
                 })}
             </div>
@@ -642,7 +787,10 @@ export default function Chat() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[color-mix(in_srgb,var(--border)_70%,transparent)] bg-[color-mix(in_srgb,var(--elevated)_50%,transparent)]">
           <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
             <div className="chat-transcript flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 sm:gap-2.5 sm:pr-1">
-              {chatMessages.length ? (
+              {!threadsLoaded ||
+              (messagesLoading && activeConversation && activeConversation.messagesHydrated === false) ? (
+                <ChatMessagesSkeleton />
+              ) : chatMessages.length ? (
                 chatMessages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
@@ -651,10 +799,23 @@ export default function Chat() {
                     }`}
                   >
                     {message.role === "assistant" ? (
-                      chatStreaming && index === chatMessages.length - 1 && !message.content ? (
+                      chatStreaming &&
+                      index === chatMessages.length - 1 &&
+                      !message.content &&
+                      !(message.citations && message.citations.length > 0) ? (
                         <InlineStatusPlaceholder status={chatStatus} activity={chatActivity} />
                       ) : (
-                        <AssistantMessageBody content={message.content} conversationTitle={activeConversation?.title ?? ""} />
+                        (() => {
+                          const { body, citations: fromFooter } = splitMessageCitations(message.content);
+                          const citations = mergeCitationLists(message.citations ?? [], fromFooter);
+                          return (
+                            <AssistantMessageBody
+                              content={body}
+                              citations={citations.length ? citations : undefined}
+                              conversationTitle={activeConversation?.title ?? ""}
+                            />
+                          );
+                        })()
                       )
                     ) : (
                       <div className="whitespace-pre-wrap">{message.content}</div>
@@ -742,7 +903,13 @@ export default function Chat() {
               <button
                 type="button"
                 onClick={() => void handleChatSubmit()}
-                disabled={chatStreaming || !chatInput.trim() || !threadsLoaded || !activeConversation}
+                disabled={
+                  chatStreaming ||
+                  !chatInput.trim() ||
+                  !threadsLoaded ||
+                  !activeConversation ||
+                  (messagesLoading && activeConversation.messagesHydrated === false)
+                }
                 className="chat-send-btn flex h-12 w-full shrink-0 items-center justify-center gap-2 px-4 sm:h-[48px] sm:w-auto"
               >
                 <FiSend className="size-4" strokeWidth={2.25} />
