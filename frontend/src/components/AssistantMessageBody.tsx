@@ -47,11 +47,11 @@ export default function AssistantMessageBody({
       {showSuggestedDocument ? (
         <div className="chat-artifact-suggestion brand-elevated mb-4 flex items-center justify-between gap-4 rounded-2xl p-3.5">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="chat-artifact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl brand-gradient text-white">
-              <FiFileText size={20} />
+            <div className="chat-artifact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white">
+              <FiFileText className="size-5" strokeWidth={2.25} />
             </div>
             <div className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-muted mb-0.5">Suggested Document</div>
+              <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Document</div>
               <div className="truncate text-sm font-semibold">{downloadableMessage.spec.filename}</div>
             </div>
           </div>

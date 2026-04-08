@@ -1,0 +1,182 @@
+import { FiLayers, FiLogOut, FiMessageSquare, FiMoon, FiSettings, FiSun } from "react-icons/fi";
+import { LuPanelLeft } from "react-icons/lu";
+
+import type { ThemeMode } from "../types";
+import { navigateTo, setAccessToken } from "../utils";
+import BrandWordmark from "./BrandWordmark";
+
+/** Unified width for Documents, Settings, and Chat side rails (px). Keep in sync with Tailwind classes below. */
+export const WORKSPACE_SIDEBAR_WIDTH = 280;
+
+export type WorkspaceAppPage = "documents" | "chat" | "settings";
+
+const toolbarIconBtn =
+  "flex h-10 w-10 touch-manipulation items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)] text-secondary transition-all active:scale-[0.96]";
+
+export function WorkspaceAppBar({
+  theme,
+  setTheme,
+  activePage,
+}: {
+  theme: ThemeMode;
+  setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
+  activePage: WorkspaceAppPage;
+}) {
+  function logout() {
+    setAccessToken(null);
+    navigateTo("/login");
+  }
+
+  const activeRing = "ring-2 ring-[color-mix(in_srgb,var(--primary)_45%,transparent)] ring-offset-2 ring-offset-[var(--background)]";
+
+  return (
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <BrandWordmark />
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5" role="toolbar" aria-label="Workspace">
+        <button
+          type="button"
+          onClick={() => navigateTo("/documents")}
+          title="Documents"
+          aria-label="Documents"
+          aria-current={activePage === "documents" ? "page" : undefined}
+          className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--data)_40%,transparent)] hover:text-[var(--data)] ${activePage === "documents" ? activeRing : "hover:border-[var(--border)]"}`}
+        >
+          <FiLayers className="size-5" strokeWidth={2.25} />
+        </button>
+        <button
+          type="button"
+          onClick={() => navigateTo("/chat")}
+          title="Chat"
+          aria-label="Chat"
+          aria-current={activePage === "chat" ? "page" : undefined}
+          className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--primary)_40%,transparent)] hover:text-[var(--primary)] ${activePage === "chat" ? activeRing : "hover:border-[var(--border)]"}`}
+        >
+          <FiMessageSquare className="size-5" strokeWidth={2.25} />
+        </button>
+        <button
+          type="button"
+          onClick={() => navigateTo("/settings")}
+          title="Settings"
+          aria-label="Settings"
+          aria-current={activePage === "settings" ? "page" : undefined}
+          className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--primary)_40%,transparent)] hover:text-[var(--primary)] ${activePage === "settings" ? activeRing : "hover:border-[var(--border)]"}`}
+        >
+          <FiSettings className="size-5" strokeWidth={2.25} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
+          title={theme === "dark" ? "Light mode" : "Dark mode"}
+          aria-label={theme === "dark" ? "Light mode" : "Dark mode"}
+          className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--warning)_35%,transparent)] hover:text-[var(--warning)]`}
+        >
+          {theme === "dark" ? <FiSun className="size-5" strokeWidth={2.25} /> : <FiMoon className="size-5" strokeWidth={2.25} />}
+        </button>
+        <button
+          type="button"
+          onClick={logout}
+          title="Sign out"
+          aria-label="Sign out"
+          className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--error)_35%,transparent)] hover:text-[var(--error)]`}
+        >
+          <FiLogOut className="size-5" strokeWidth={2.25} />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+export function SidebarToggleButton({
+  open,
+  onToggle,
+  sidebarId,
+  labelOpen,
+  labelClosed,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  sidebarId: string;
+  labelOpen: string;
+  labelClosed: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={open ? labelOpen : labelClosed}
+      aria-label={open ? labelOpen : labelClosed}
+      aria-expanded={open}
+      aria-controls={sidebarId}
+      className="flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)] text-secondary transition-all hover:border-[color-mix(in_srgb,var(--primary)_35%,transparent)] hover:text-[var(--primary)] active:scale-[0.96]"
+    >
+      <LuPanelLeft
+        className={`size-5 transition-transform duration-300 ease-out ${open ? "" : "scale-x-[-1]"}`}
+        strokeWidth={2.25}
+        aria-hidden
+      />
+    </button>
+  );
+}
+
+type WorkspaceSidebarRailProps = {
+  sidebarId: string;
+  open: boolean;
+  onOverlayDismiss: () => void;
+  children: React.ReactNode;
+};
+
+/**
+ * Collapsible left rail: mobile drawer + desktop width animation.
+ * Parent row should be `flex min-h-0 flex-1` so the rail stretches to full remaining height.
+ */
+export function WorkspaceSidebarRail({ sidebarId, open, onOverlayDismiss, children }: WorkspaceSidebarRailProps) {
+  return (
+    <>
+      {open ? (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-30 bg-[color-mix(in_srgb,var(--text-primary)_18%,transparent)] backdrop-blur-[2px] lg:hidden"
+          onClick={onOverlayDismiss}
+        />
+      ) : null}
+
+      <aside
+        id={sidebarId}
+        aria-hidden={!open}
+        className={`z-40 min-w-0 shrink-0 overflow-hidden transition-[width,max-width,opacity] duration-300 ease-out motion-reduce:transition-none max-lg:shadow-2xl ${
+          open
+            ? "fixed inset-y-0 left-0 flex h-[100dvh] min-h-[100dvh] max-h-[100dvh] w-[min(100vw-1rem,280px)] max-w-[280px] flex-col border-b-0 border-[var(--border)] opacity-100 max-lg:rounded-r-2xl max-lg:border-r lg:relative lg:inset-auto lg:top-auto lg:bottom-auto lg:z-auto lg:h-full lg:max-h-full lg:min-h-0 lg:w-[280px] lg:max-w-[280px] lg:self-stretch lg:border-0 lg:shadow-none"
+            : "pointer-events-none hidden opacity-0 lg:flex lg:h-full lg:max-h-full lg:min-h-0 lg:w-0 lg:max-w-0 lg:self-stretch lg:border-0"
+        }`}
+      >
+        <div className="flex h-full min-h-0 w-full min-w-[min(280px,100vw-1rem)] max-w-[280px] flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_94%,transparent)] p-4 shadow-[0_1px_0_0_color-mix(in_srgb,var(--border)_80%,transparent)] lg:max-h-full lg:overflow-hidden">
+          {children}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+export function WorkspaceMainColumn({
+  children,
+  className,
+  /** When true, outer column does not scroll (e.g. Chat keeps scroll inside the transcript). */
+  noOuterScroll,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  noOuterScroll?: boolean;
+}) {
+  return (
+    <div
+      className={`flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_40%,transparent)] px-4 pb-6 pt-4 shadow-[0_1px_0_0_color-mix(in_srgb,var(--border)_80%,transparent)] lg:min-h-0 ${
+        noOuterScroll ? "overflow-hidden" : "overflow-y-auto"
+      } ${className ?? ""}`}
+    >
+      {children}
+    </div>
+  );
+}

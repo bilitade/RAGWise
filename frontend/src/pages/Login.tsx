@@ -34,47 +34,49 @@ export default function Login() {
   }
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-8 px-4 py-12">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <BrandWordmark />
-        <p className="text-secondary text-sm">Sign in to access admin settings</p>
-      </div>
-      <form onSubmit={handleSubmit} className="brand-card flex flex-col gap-4 rounded-[28px] p-8">
-        <div className="flex items-center gap-2 text-secondary">
-          <FiLock />
-          <span className="text-sm font-medium">Credentials</span>
+    <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center px-2 py-6 sm:px-4">
+      <div className="flex w-full max-w-md flex-col gap-8">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <BrandWordmark />
+          <p className="text-secondary text-sm">Sign in to your workspace</p>
         </div>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-secondary">Email</span>
-          <input
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="brand-input rounded-2xl px-4 py-3"
-            required
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-secondary">Password</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="brand-input rounded-2xl px-4 py-3"
-            required
-          />
-        </label>
-        {error ? <p className="text-sm status-error">{error}</p> : null}
-        <button
-          type="submit"
-          disabled={loading}
-          className="brand-pill-active rounded-2xl px-4 py-3 text-sm font-medium disabled:opacity-50"
-        >
-          {loading ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="brand-card flex w-full flex-col gap-4 rounded-[28px] p-8">
+          <div className="flex items-center gap-2 text-secondary">
+            <FiLock />
+            <span className="text-sm font-medium">Credentials</span>
+          </div>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-secondary">Email</span>
+            <input
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="brand-input rounded-2xl px-4 py-3"
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-secondary">Password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="brand-input rounded-2xl px-4 py-3"
+              required
+            />
+          </label>
+          {error ? <p className="text-sm status-error">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={loading}
+            className="brand-pill-active rounded-2xl px-4 py-3 text-sm font-medium disabled:opacity-50"
+          >
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -3,19 +3,17 @@ import {
   FiDownload,
   FiFileText,
   FiLayers,
-  FiMessageSquare,
-  FiMoon,
   FiRefreshCw,
   FiSearch,
-  FiSettings,
-  FiSun,
   FiTrash2,
   FiUploadCloud,
 } from "react-icons/fi";
 
-import type { DocumentsTab, IngestionJob, ManagedDocument, RetrievalMode, RetrievalResult, ThemeMode } from "../types";
+import type { DocumentsTab, IngestionJob, ManagedDocument, RetrievalMode, RetrievalResult } from "../types";
+
 import {
   API_BASE_URL,
+  DOCUMENTS_SIDEBAR_KEY,
   downloadDocumentFile,
   fetchJson,
   formatBytes,
@@ -23,36 +21,33 @@ import {
   getDocumentBadge,
   getJobSummary,
   getStatusClass,
-  navigateTo,
+  readSidebarPreference,
+  writeSidebarPreference,
 } from "../utils";
-import BrandWordmark from "../components/BrandWordmark";
+import { SidebarToggleButton, WorkspaceMainColumn, WorkspaceSidebarRail } from "../components/WorkspaceChrome";
 
 const DOC_NAV: {
   id: DocumentsTab;
   title: string;
-  hint: string;
   icon: React.ReactNode;
   group: string;
 }[] = [
   {
     id: "files",
     title: "Files",
-    hint: "Uploads, download, delete",
-    icon: <FiFileText className="text-lg" />,
+    icon: <FiFileText className="size-[1.1rem]" strokeWidth={2.25} />,
     group: "Sources",
   },
   {
     id: "ingestion",
     title: "Ingestion",
-    hint: "Queue jobs & track progress",
-    icon: <FiUploadCloud className="text-lg" />,
+    icon: <FiUploadCloud className="size-[1.1rem]" strokeWidth={2.25} />,
     group: "Sources",
   },
   {
     id: "search",
     title: "Search",
-    hint: "Test retrieval before chat",
-    icon: <FiSearch className="text-lg" />,
+    icon: <FiSearch className="size-[1.1rem]" strokeWidth={2.25} />,
     group: "Retrieval",
   },
 ];
@@ -63,29 +58,19 @@ function navMeta(tab: DocumentsTab) {
     item ?? {
       id: "files" as DocumentsTab,
       title: "Workspace",
-      hint: "Manage your knowledge base",
       group: "Knowledge base",
-      icon: <FiLayers className="text-lg" />,
+      icon: <FiLayers className="size-[1.1rem]" strokeWidth={2.25} />,
     }
   );
 }
 
-function DocSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
+function DocSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="brand-card rounded-[24px] p-6 sm:p-8">
-      <div className="border-b border-[var(--border)] pb-5">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-secondary mt-1.5 max-w-3xl text-sm leading-relaxed">{description}</p>
+    <section className="brand-card rounded-2xl p-4 sm:p-6">
+      <div className="border-b border-[var(--border)] pb-3 sm:pb-4">
+        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
       </div>
-      <div className="pt-6">{children}</div>
+      <div className="pt-4 sm:pt-5">{children}</div>
     </section>
   );
 }
@@ -93,13 +78,9 @@ function DocSection({
 export default function Documents({
   activeTab,
   onTabChange,
-  theme,
-  setTheme,
 }: {
   activeTab: DocumentsTab;
   onTabChange: (tab: DocumentsTab) => void;
-  theme: ThemeMode;
-  setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
 }) {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [documents, setDocuments] = useState<ManagedDocument[]>([]);
@@ -114,8 +95,24 @@ export default function Documents({
   const [retrievalQuery, setRetrievalQuery] = useState("");
   const [retrievalLoading, setRetrievalLoading] = useState(false);
   const [retrievalResults, setRetrievalResults] = useState<RetrievalResult[]>([]);
+  const [docSidebarOpen, setDocSidebarOpen] = useState(() => readSidebarPreference(DOCUMENTS_SIDEBAR_KEY));
 
   const meta = useMemo(() => navMeta(activeTab), [activeTab]);
+
+  useEffect(() => {
+    writeSidebarPreference(DOCUMENTS_SIDEBAR_KEY, docSidebarOpen);
+  }, [docSidebarOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        setDocSidebarOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     void loadDocuments();
@@ -322,10 +319,7 @@ export default function Documents({
   }, []);
 
   const filesSection = (
-    <DocSection
-      title="Library"
-      description="Everything under your upload directory. Stale means the file changed since it was last embedded — reindex to refresh vectors and BM25."
-    >
+    <DocSection title="Library">
       <div className="grid gap-3">
         {documentsLoading ? (
           <div className="brand-elevated rounded-2xl px-4 py-8 text-center text-sm text-secondary">Loading documents…</div>
@@ -378,9 +372,7 @@ export default function Documents({
             </div>
           ))
         ) : (
-          <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">
-            No files yet. Use <strong className="text-[var(--text-primary)]">Ingestion</strong> to upload, or drop files in your server upload folder if configured.
-          </div>
+          <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">No files.</div>
         )}
       </div>
     </DocSection>
@@ -388,10 +380,7 @@ export default function Documents({
 
   const ingestionSection = (
     <div className="space-y-8">
-      <DocSection
-        title="Queue ingestion"
-        description="Upload-only stores raw files. Upload + ingest parses, chunks, embeds, and writes to Qdrant. Reingest all rebuilds the collection from every file in the library (use after bulk changes)."
-      >
+      <DocSection title="Ingestion">
         {actionMessage ? (
           <div className="mb-4 rounded-2xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] px-4 py-3 text-sm status-success">
             {actionMessage}
@@ -423,7 +412,7 @@ export default function Documents({
             type="button"
             onClick={() => void handleUploadAndIngest()}
             disabled={uploadingAndIngesting || !selectedFiles?.length}
-            className="brand-gradient rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            className="brand-primary rounded-xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploadingAndIngesting ? "Queueing…" : "Upload & ingest"}
           </button>
@@ -438,10 +427,7 @@ export default function Documents({
         </div>
       </DocSection>
 
-      <DocSection
-        title="Active job"
-        description="Polls the Celery task until completion. For advanced chunk options (Pro/Admin), use the API with chunk_size and chunk_overlap query parameters."
-      >
+      <DocSection title="Job">
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="brand-elevated rounded-2xl p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
@@ -457,7 +443,7 @@ export default function Documents({
             {activeJob?.task_id ? (
               <div className="text-muted mt-4 font-mono text-[11px]">Task {activeJob.task_id}</div>
             ) : (
-              <p className="text-secondary mt-4 text-sm">No job yet — start an ingest above.</p>
+              <p className="text-secondary mt-4 text-sm">No active job.</p>
             )}
             {activeJob?.failed && activeJob.error ? <div className="mt-3 text-sm status-error">{activeJob.error}</div> : null}
           </div>
@@ -476,17 +462,14 @@ export default function Documents({
     </div>
   );
 
-  const searchModes: { id: RetrievalMode; label: string; desc: string }[] = [
-    { id: "similarity", label: "Vector (similarity)", desc: "Dense embeddings — best for paraphrases and meaning." },
-    { id: "bm25", label: "BM25 (lexical)", desc: "Keyword overlap — best for exact terms and SKUs. Requires Pro/Admin." },
-    { id: "advanced", label: "Hybrid", desc: "Fuses vector + BM25. Requires Pro/Admin." },
+  const searchModes: { id: RetrievalMode; label: string }[] = [
+    { id: "similarity", label: "Similarity" },
+    { id: "bm25", label: "BM25" },
+    { id: "advanced", label: "Hybrid" },
   ];
 
   const searchSection = (
-    <DocSection
-      title="Retrieval playground"
-      description="Same backends as production chat tools. Sign in with a Pro or Admin account to unlock BM25 and hybrid. Normal users: similarity only."
-    >
+    <DocSection title="Search">
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex min-w-[200px] flex-col gap-2 lg:w-56">
           <span className="text-muted text-[10px] font-semibold uppercase tracking-[0.2em]">Mode</span>
@@ -495,14 +478,13 @@ export default function Documents({
               key={m.id}
               type="button"
               onClick={() => setRetrievalMode(m.id)}
-              className={`rounded-2xl border px-4 py-3 text-left text-sm transition-colors ${
+              className={`rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                 retrievalMode === m.id
                   ? "border-[color-mix(in_srgb,var(--primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] shadow-[inset_3px_0_0_0_var(--primary)]"
                   : "border-transparent hover:bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)]"
               }`}
             >
-              <span className="font-semibold">{m.label}</span>
-              <span className="text-muted mt-1 block text-xs leading-snug">{m.desc}</span>
+              {m.label}
             </button>
           ))}
         </div>
@@ -512,7 +494,7 @@ export default function Documents({
             <input
               value={retrievalQuery}
               onChange={(event) => setRetrievalQuery(event.target.value)}
-              placeholder="Ask what a customer might ask…"
+              placeholder="Query…"
               className="surface-input min-w-0 flex-1 rounded-2xl px-4 py-3.5 text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter") void handleRetrieval();
@@ -522,7 +504,7 @@ export default function Documents({
               type="button"
               onClick={() => void handleRetrieval()}
               disabled={retrievalLoading}
-              className="brand-primary shrink-0 rounded-2xl px-6 py-3.5 text-sm font-semibold disabled:opacity-50"
+              className="brand-primary shrink-0 rounded-xl px-5 py-3 text-sm font-semibold disabled:opacity-50"
             >
               {retrievalLoading ? "Searching…" : "Run search"}
             </button>
@@ -547,9 +529,7 @@ export default function Documents({
                 </div>
               ))
             ) : (
-              <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">
-                Results appear here. Ingest documents first, then try a query that should exist in your knowledge base.
-              </div>
+              <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">No results.</div>
             )}
           </div>
         </div>
@@ -558,28 +538,24 @@ export default function Documents({
   );
 
   return (
-    <div className="documents-shell flex min-h-[calc(100vh-3rem)] flex-col gap-0 lg:flex-row lg:gap-0">
-      <aside className="flex w-full shrink-0 flex-col border-b border-[var(--border)] lg:w-[280px] lg:border-b-0 lg:border-r">
-        <div className="brand-card flex flex-col gap-4 rounded-none border-0 border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] p-5 lg:sticky lg:top-6 lg:mr-0 lg:rounded-[24px] lg:border lg:p-5">
-          <div>
-            <div className="flex items-center gap-2 text-[var(--data)]">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_90%,transparent)]">
-                <FiLayers className="text-lg" />
-              </span>
-              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Workspace</span>
+    <div className="documents-shell relative flex h-full min-h-0 w-full flex-1 flex-col gap-4 overflow-x-hidden lg:flex-row lg:items-stretch lg:gap-6 lg:overflow-hidden">
+      <WorkspaceSidebarRail
+        sidebarId="documents-sidebar"
+        open={docSidebarOpen}
+        onOverlayDismiss={() => setDocSidebarOpen(false)}
+      >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="shrink-0">
+            <div className="flex items-center gap-2.5 text-[var(--data)]">
+              <FiLayers className="size-5 shrink-0" strokeWidth={2.25} />
+              <span className="text-xs font-semibold uppercase tracking-wide">Workspace</span>
             </div>
-            <div className="mt-3 min-w-0">
-              <BrandWordmark />
-            </div>
-            <p className="text-secondary mt-2 text-xs leading-relaxed">
-              Manage source files, run ingestion against Qdrant, and debug retrieval before chatting.
-            </p>
           </div>
 
-          <nav className="flex flex-col gap-5" aria-label="Workspace sections">
+          <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain" aria-label="Workspace sections">
             {Object.entries(groupedNav).map(([groupLabel, items]) => (
               <div key={groupLabel}>
-                <p className="text-muted mb-2 px-1 text-[10px] font-semibold uppercase tracking-[0.22em]">{groupLabel}</p>
+                <p className="text-muted mb-2 text-[10px] font-semibold uppercase tracking-wide">{groupLabel}</p>
                 <ul className="flex flex-col gap-1">
                   {items.map((item) => {
                     const active = activeTab === item.id;
@@ -588,23 +564,14 @@ export default function Documents({
                         <button
                           type="button"
                           onClick={() => onTabChange(item.id)}
-                          className={`doc-nav-btn group flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
+                          className={`doc-nav-btn group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium transition-colors ${
                             active
-                              ? "border border-[color-mix(in_srgb,var(--primary)_35%,transparent)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] shadow-[inset_3px_0_0_0_var(--primary)]"
-                              : "border border-transparent hover:bg-[color-mix(in_srgb,var(--elevated)_85%,transparent)]"
+                              ? "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--text-primary)]"
+                              : "text-secondary hover:bg-[color-mix(in_srgb,var(--elevated)_75%,transparent)] hover:text-[var(--text-primary)]"
                           }`}
                         >
-                          <span
-                            className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] ${
-                              active ? "text-[var(--primary)]" : "text-secondary group-hover:text-[var(--text-primary)]"
-                            }`}
-                          >
-                            {item.icon}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className={`block text-sm font-semibold ${active ? "text-[var(--text-primary)]" : ""}`}>{item.title}</span>
-                            <span className="text-muted mt-0.5 block text-[11px] leading-snug">{item.hint}</span>
-                          </span>
+                          <span className={`shrink-0 ${active ? "text-[var(--primary)]" : "text-secondary opacity-90"}`}>{item.icon}</span>
+                          <span className="min-w-0">{item.title}</span>
                         </button>
                       </li>
                     );
@@ -614,50 +581,30 @@ export default function Documents({
             ))}
           </nav>
 
-          <div className="border-t border-[var(--border)] pt-4">
-            <button
-              type="button"
-              onClick={() => navigateTo("/chat")}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition-colors hover:bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)]"
-            >
-              <FiMessageSquare />
-              Open chat
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateTo("/settings")}
-              className="text-secondary mt-2 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm hover:text-[var(--text-primary)]"
-            >
-              <FiSettings />
-              Admin settings
-            </button>
-            <button
-              type="button"
-              onClick={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
-              className="text-secondary mt-2 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm"
-            >
-              {theme === "dark" ? <FiSun /> : <FiMoon />}
-              {theme === "dark" ? "Light mode" : "Dark mode"}
-            </button>
-            <div className="text-muted mt-4 rounded-xl border border-[var(--border)] px-3 py-2 font-mono text-[10px] break-all">
-              <span className="text-secondary">API</span> {API_BASE_URL}
-            </div>
+          <div className="shrink-0 border-t border-[var(--border)] pt-3">
+            <p className="text-muted truncate font-mono text-[9px]" title={API_BASE_URL}>
+              {API_BASE_URL}
+            </p>
           </div>
         </div>
-      </aside>
+      </WorkspaceSidebarRail>
 
-      <div className="documents-main min-w-0 flex-1 px-0 pt-6 pb-10 lg:px-8 lg:pt-2 lg:pb-12">
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <nav className="text-muted flex flex-wrap items-center gap-1.5 text-xs font-medium" aria-label="Breadcrumb">
-              <span className="rounded-md bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)] px-2 py-0.5">Knowledge base</span>
-              <span className="text-[var(--border)]">/</span>
-              <span className="text-secondary">{meta.group}</span>
-              <span className="text-[var(--border)]">/</span>
-              <span className="text-[var(--text-primary)]">{meta.title}</span>
-            </nav>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{meta.title}</h1>
-            <p className="text-secondary mt-2 max-w-2xl text-sm leading-relaxed">{meta.hint}</p>
+      <WorkspaceMainColumn>
+        <header className="mb-5">
+          <div className="flex items-start gap-2">
+            <SidebarToggleButton
+              open={docSidebarOpen}
+              onToggle={() => setDocSidebarOpen((o) => !o)}
+              sidebarId="documents-sidebar"
+              labelOpen="Hide sidebar (Ctrl+\\)"
+              labelClosed="Show sidebar (Ctrl+\\)"
+            />
+            <div className="min-w-0">
+              <nav className="text-secondary text-xs font-medium" aria-label="Location">
+                Documents
+              </nav>
+              <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{meta.title}</h1>
+            </div>
           </div>
         </header>
 
@@ -678,7 +625,7 @@ export default function Documents({
           {activeTab === "ingestion" ? ingestionSection : null}
           {activeTab === "search" ? searchSection : null}
         </div>
-      </div>
+      </WorkspaceMainColumn>
     </div>
   );
 }

@@ -12,6 +12,30 @@ export const API_BASE_URL =
 
 const TOKEN_KEY = "rag_access_token";
 
+/** Workspace sidebar open/closed (1/0 in localStorage). */
+export const DOCUMENTS_SIDEBAR_KEY = "documents-sidebar-open";
+export const SETTINGS_SIDEBAR_KEY = "settings-sidebar-open";
+export const CHAT_SIDEBAR_KEY = "chat-sidebar-open";
+
+export function readSidebarPreference(key: string, defaultOpen = true): boolean {
+    try {
+        const v = localStorage.getItem(key);
+        if (v === "0") return false;
+        if (v === "1") return true;
+    } catch {
+        /* ignore */
+    }
+    return defaultOpen;
+}
+
+export function writeSidebarPreference(key: string, open: boolean): void {
+    try {
+        localStorage.setItem(key, open ? "1" : "0");
+    } catch {
+        /* ignore */
+    }
+}
+
 export function getAccessToken(): string | null {
     if (typeof localStorage === "undefined") return null;
     return localStorage.getItem(TOKEN_KEY);
