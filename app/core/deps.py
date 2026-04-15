@@ -60,6 +60,19 @@ def require_pro_or_admin(
     return user
 
 
+def require_user(
+    user: Annotated[User | None, Depends(require_active_user)],
+) -> User:
+    """Valid JWT required (used for persisted chat and other user-scoped routes)."""
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
 def require_admin(
     user: Annotated[User | None, Depends(get_request_user_optional)],
 ) -> User:

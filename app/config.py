@@ -46,6 +46,13 @@ def get_float_env(name: str, default: float) -> float:
     return float(value) if value else default
 
 
+def get_bool_env(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.lower() in ("1", "true", "yes")
+
+
 load_env()
 
 UPLOAD_DIR = Path(get_env("DOCUMENTS_DIR", str(PROJECT_ROOT / "upload")))
@@ -69,6 +76,8 @@ COMPANY_NAME = (get_env("COMPANY_NAME") or "").strip()
 
 API_HOST = get_env("API_HOST", "0.0.0.0")
 API_PORT = get_int_env("API_PORT", 8000)
+# Uvicorn --reload (dev only; keep false in production)
+API_RELOAD = get_bool_env("API_RELOAD", False)
 API_CORS_ORIGINS = [
     origin.strip()
     for origin in get_env("API_CORS_ORIGINS", "http://localhost:5173").split(",")

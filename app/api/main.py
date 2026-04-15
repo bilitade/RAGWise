@@ -1,29 +1,18 @@
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.api.routers import auth, chat, documents, health, me, personas, settings
-from app.config import API_CORS_ORIGINS, API_HOST, API_PORT, APP_LOG_FILE
+from app.config import API_CORS_ORIGINS, API_HOST, API_PORT, API_RELOAD
 from app.db.models import Base
 from app.db.session import SessionLocal, engine
+from app.logging_config import setup_file_logging
 
 
-def _setup_logging() -> None:
-    path = Path(APP_LOG_FILE)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
-    if not any(getattr(h, "baseFilename", None) == str(path.resolve()) for h in root.handlers if hasattr(h, "baseFilename")):
-        fh = logging.FileHandler(path, encoding="utf-8")
-        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
-        root.addHandler(fh)
-
-
-_setup_logging()
+setup_file_logging()
 log = logging.getLogger(__name__)
 
 
@@ -80,7 +69,7 @@ app.include_router(chat.router, prefix="/api")
 
 
 def main() -> None:
-    uvicorn.run("app.api.main:app", host=API_HOST, port=API_PORT, reload=True)
+    uvicorn.run("app.api.main:app", host=API_HOST, port=API_PORT, reload=API_RELOAD)
 
 
 if __name__ == "__main__":

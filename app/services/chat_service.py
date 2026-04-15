@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, cast
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
@@ -23,12 +23,8 @@ CONTEXT_MESSAGE_LIMIT: dict[ContextWindowMode, int] = {
 
 def resolve_context_limit(mode: str | None) -> int:
     key = (mode or "min").lower()
-    if key == "min":
-        return CONTEXT_MESSAGE_LIMIT["min"]
-    if key == "medium":
-        return CONTEXT_MESSAGE_LIMIT["medium"]
-    if key == "max":
-        return CONTEXT_MESSAGE_LIMIT["max"]
+    if key in ("min", "medium", "max"):
+        return CONTEXT_MESSAGE_LIMIT[cast(ContextWindowMode, key)]
     return CONTEXT_MESSAGE_LIMIT["min"]
 
 

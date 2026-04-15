@@ -19,6 +19,15 @@ from app.agent.tools import internet_search, knowledge_base_search
 from app.config import OPENAI_MODEL
 
 
+def filter_agent_chat_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep only user/assistant turns with normalized content for the agent."""
+    return [
+        {"role": m["role"], "content": m.get("content") or ""}
+        for m in messages
+        if (m.get("role") or "").lower() in ("user", "assistant")
+    ]
+
+
 def dict_messages_to_langchain(messages: list[dict[str, str]]) -> list[HumanMessage | AIMessage]:
     """Multi-turn history for deep agents: alternating user / assistant LangChain messages."""
     lc: list[HumanMessage | AIMessage] = []
@@ -88,12 +97,7 @@ async def astream_agent_events(
     agent = build_agent(system_prompt=system_prompt, model_name=model_name, tools=tools)
 
     if messages:
-        filtered = [
-            {"role": m["role"], "content": m.get("content") or ""}
-            for m in messages
-            if (m.get("role") or "").lower() in ("user", "assistant")
-        ]
-        lc_messages = dict_messages_to_langchain(filtered)
+        lc_messages = dict_messages_to_langchain(filter_agent_chat_messages(messages))
     elif query:
         lc_messages = [HumanMessage(content=query)]
     else:
@@ -155,12 +159,7 @@ def stream_agent_text(
 ) -> Iterator[str]:
     agent = build_agent(system_prompt=system_prompt, model_name=model_name, tools=tools)
     if messages:
-        filtered = [
-            {"role": m["role"], "content": m.get("content") or ""}
-            for m in messages
-            if (m.get("role") or "").lower() in ("user", "assistant")
-        ]
-        lc_messages = dict_messages_to_langchain(filtered)
+        lc_messages = dict_messages_to_langchain(filter_agent_chat_messages(messages))
     elif query:
         lc_messages = [HumanMessage(content=query)]
     else:

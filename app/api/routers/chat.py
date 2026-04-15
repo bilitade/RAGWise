@@ -19,7 +19,7 @@ from app.api.schemas import (
     ChatThreadUpdate,
 )
 from app.config import LANGCHAIN_PROJECT, LANGCHAIN_TRACING_V2
-from app.core.deps import require_active_user
+from app.core.deps import require_active_user, require_user
 from app.db.models import User
 from app.db.session import get_db
 from app.services.chat_service import (
@@ -180,10 +180,8 @@ def list_chat_threads(
 def create_chat_thread(
     body: ChatThreadCreate,
     db: Session = Depends(get_db),
-    user: User | None = Depends(require_active_user),
+    user: User = Depends(require_user),
 ) -> ChatThreadResponse:
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
     persona_uuid = _parse_uuid(body.persona_id)
     thread = create_thread(
         db,
@@ -201,10 +199,8 @@ def create_chat_thread(
 def get_thread_messages(
     thread_id: str,
     db: Session = Depends(get_db),
-    user: User | None = Depends(require_active_user),
+    user: User = Depends(require_user),
 ) -> ChatMessagesListResponse:
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
     tid = _parse_uuid(thread_id)
     if not tid:
         raise HTTPException(status_code=400, detail="Invalid thread id")
@@ -219,10 +215,8 @@ def get_thread_messages(
 def delete_chat_thread(
     thread_id: str,
     db: Session = Depends(get_db),
-    user: User | None = Depends(require_active_user),
+    user: User = Depends(require_user),
 ) -> Response:
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
     tid = _parse_uuid(thread_id)
     if not tid:
         raise HTTPException(status_code=400, detail="Invalid thread id")
@@ -237,10 +231,8 @@ def update_chat_thread(
     thread_id: str,
     body: ChatThreadUpdate,
     db: Session = Depends(get_db),
-    user: User | None = Depends(require_active_user),
+    user: User = Depends(require_user),
 ) -> ChatThreadResponse:
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
     tid = _parse_uuid(thread_id)
     if not tid:
         raise HTTPException(status_code=400, detail="Invalid thread id")

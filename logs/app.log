@@ -153,3 +153,14 @@
 2026-04-08 18:27:39,192 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 2026-04-08 18:27:58,162 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 2026-04-08 18:30:53,641 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 08:24:26,332 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 08:43:24,011 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 08:43:35,256 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-15 08:43:35,610 INFO httpx HTTP Request: GET http://localhost:6333/collections/knowledge_base/exists "HTTP/1.1 200 OK"
+2026-04-15 08:43:35,613 INFO httpx HTTP Request: GET http://localhost:6333 "HTTP/1.1 200 OK"
+2026-04-15 08:43:35,637 INFO httpx HTTP Request: GET http://localhost:6333/collections/knowledge_base "HTTP/1.1 200 OK"
+2026-04-15 08:43:38,803 INFO httpx HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-04-15 08:43:38,941 INFO httpx HTTP Request: POST http://localhost:6333/collections/knowledge_base/points/query "HTTP/1.1 200 OK"
+2026-04-15 08:43:38,953 DEBUG bm25s Building index from IDs objects
+2026-04-15 08:43:38,957 WARNING llama_index.retrievers.bm25.base As bm25s.BM25 requires k less than or equal to number of nodes added. Overriding the value of similarity_top_k to number of nodes added.
+2026-04-15 08:43:40,654 INFO httpx HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
