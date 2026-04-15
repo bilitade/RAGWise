@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+from typing import Any, get_args
+
+from llama_index.core import VectorStoreIndex
+from llama_index.embeddings.openai import OpenAIEmbedding
+
+from app.config import OPENAI_EMBED_MODEL, QDRANT_HYBRID_ENABLED
+from app.db.qdrant import QdrantStore
+from app.retrieval.models import ScoreKind, ScoredPoint, SearchResult
+
+
+def build_embed_model() -> OpenAIEmbedding:
+    return OpenAIEmbedding(model=OPENAI_EMBED_MODEL)
+
+
+def use_qdrant_hybrid() -> bool:
+    if not QDRANT_HYBRID_ENABLED:
+        return False
+    q = QdrantStore()
+    return q.collection_exists() and q.is_hybrid_collection()
+
+
+def get_vector_index() -> VectorStoreIndex:
+    qdrant = QdrantStore()
+    return VectorStoreIndex.from_vector_store(
+        vector_store=qdrant.get_vector_store(),
+        embed_model=build_embed_model(),
+    )
+
+
+def extract_node_text(node: Any) -> str:
+    text = getattr(node, "text", None)
+    if text:
+        return text
+    return node.get_content()
+
+
+def node_with_score_to_result(node_with_score: Any, source: str) -> SearchResult:
+    node = node_with_score.node
+    return SearchResult(
+        node_id=node.node_id,
+        score=float(node_with_score.score or 0.0),
+        text=extract_node_text(node),
+        metadata=node.metadata,
+        source=source,
+        matched_by=(source,),
+        score_kind="llamaindex_similarity",
+    )
+
+
+def scored_point_to_search_result(
+    point: ScoredPoint,
+    source: str,
+    matched_by: tuple[str, ...] | None = None,
+) -> SearchResult:
+    allowed = get_args(ScoreKind)
+    sk: ScoreKind = point.score_kind if point.score_kind in allowed else "unknown"  # type: ignore[assignment]
+    return SearchResult(
+        node_id=point.point_id,
+        score=point.score,
+        text=point.text,
+        metadata=point.metadata,
+        source=source,
+        matched_by=matched_by if matched_by is not None else (source,),
+        score_kind=sk,
+    )

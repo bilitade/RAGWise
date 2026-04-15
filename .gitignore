@@ -10,7 +10,6 @@ wheels/
 .venv
 
 .env
-app/db/knowledge_base_nodes.jsonl
 upload
 frontend/node_modules
 frontend/dist

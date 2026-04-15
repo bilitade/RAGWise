@@ -8,7 +8,10 @@ export const INGESTION_STEPS = [
     { name: "chunking_documents", label: "Chunking documents" },
     { name: "preparing_vector_store", label: "Preparing vector store" },
     { name: "embedding_and_indexing", label: "Embedding and indexing" },
-    { name: "persisting_bm25_cache", label: "Persisting BM25 cache" },
+    {
+        name: "indexing_sparse_vectors",
+        label: "Indexing sparse vectors (Qdrant hybrid)",
+    },
     { name: "completed", label: "Completed" },
 ] as const;
 

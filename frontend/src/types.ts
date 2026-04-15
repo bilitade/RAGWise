@@ -56,6 +56,7 @@ export type ManagedDocument = {
 export type RetrievalResult = {
     node_id: string;
     score: number;
+    score_kind?: string;
     text: string;
     metadata: Record<string, unknown>;
     source: string;

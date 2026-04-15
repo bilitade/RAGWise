@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import json
+import logging
 from pathlib import Path
 import re
 from typing import Any, Callable, Literal
@@ -12,14 +13,18 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import (
-    BM25_CACHE_PATH,
     INGEST_CHUNK_OVERLAP,
     INGEST_CHUNK_SIZE,
+    OPENAI_EMBED_DIMENSIONS,
     OPENAI_EMBED_MODEL,
+    QDRANT_HYBRID_ENABLED,
     UPLOAD_DIR,
 )
 from app.db.qdrant import QdrantStore
+from qdrant_client.http.exceptions import UnexpectedResponse
 
+
+_log = logging.getLogger(__name__)
 
 IngestionStageName = Literal[
     "queued",
@@ -29,7 +34,7 @@ IngestionStageName = Literal[
     "chunking_documents",
     "preparing_vector_store",
     "embedding_and_indexing",
-    "persisting_bm25_cache",
+    "indexing_sparse_vectors",
     "completed",
     "failed",
 ]
@@ -56,8 +61,8 @@ class IngestionResult(BaseModel):
     nodes_indexed: int
     collection_name: str
     qdrant_points: int
-    bm25_cache_path: str
     stages: list[IngestionStage]
+    bm25_cache_path: str = ""  # unused; retained for API compatibility
 
 
 ProgressCallback = Callable[[IngestionStage], None]
@@ -85,7 +90,57 @@ def _emit_progress(
 
 
 def _build_embed_model() -> OpenAIEmbedding:
-    return OpenAIEmbedding(model=OPENAI_EMBED_MODEL)
+    kwargs: dict[str, object] = {"model": OPENAI_EMBED_MODEL}
+    if OPENAI_EMBED_DIMENSIONS is not None:
+        kwargs["dimensions"] = OPENAI_EMBED_DIMENSIONS
+    return OpenAIEmbedding(**kwargs)
+
+
+def _extract_qdrant_error_message(exc: BaseException) -> str:
+    """Pull Qdrant's JSON `status.error` into logs/tracebacks (raw ApiException is often empty in Celery)."""
+    visited: set[int] = set()
+
+    def walk(e: BaseException | None) -> str | None:
+        if e is None or id(e) in visited:
+            return None
+        visited.add(id(e))
+        if isinstance(e, UnexpectedResponse):
+            try:
+                err = e.structured().get("status", {}).get("error")
+                if isinstance(err, str) and err.strip():
+                    return err.strip()
+            except Exception:
+                pass
+            raw = getattr(e, "content", None)
+            if raw:
+                try:
+                    parsed = json.loads(raw.decode("utf-8"))
+                    err = parsed.get("status", {}).get("error")
+                    if isinstance(err, str) and err.strip():
+                        return err.strip()
+                except Exception:
+                    return raw.decode("utf-8", errors="replace")[:4000]
+        raw = getattr(e, "content", None)
+        if isinstance(raw, (bytes, bytearray)):
+            try:
+                parsed = json.loads(raw.decode("utf-8"))
+                err = parsed.get("status", {}).get("error")
+                if isinstance(err, str) and err.strip():
+                    return err.strip()
+            except Exception:
+                return raw.decode("utf-8", errors="replace")[:4000]
+        inner = walk(e.__cause__)
+        if inner:
+            return inner
+        s = str(e).strip()
+        if s and s != "()":
+            return s
+        return None
+
+    out = walk(exc)
+    if out:
+        return out
+    return repr(exc)
 
 
 def _extract_node_text(node: Any) -> str:
@@ -219,37 +274,6 @@ def build_nodes(
     return splitter.get_nodes_from_documents(documents)
 
 
-def persist_bm25_cache(nodes, cache_path: Path = BM25_CACHE_PATH) -> None:
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with cache_path.open("w", encoding="utf-8") as cache_file:
-        for node in nodes:
-            payload = {
-                "id": node.node_id,
-                "text": _extract_node_text(node),
-                "metadata": node.metadata,
-            }
-            cache_file.write(json.dumps(payload, ensure_ascii=True, default=str))
-            cache_file.write("\n")
-
-
-def rebuild_bm25_cache_from_files(
-    file_paths: list[Path],
-    cache_path: Path = BM25_CACHE_PATH,
-    *,
-    chunk_size: int | None = None,
-    chunk_overlap: int | None = None,
-) -> None:
-    if not file_paths:
-        if cache_path.exists():
-            cache_path.unlink()
-        return
-
-    documents = load_documents_from_files(file_paths)
-    nodes = build_nodes(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    persist_bm25_cache(nodes, cache_path=cache_path)
-
-
 def ingest_file_paths(
     file_paths: list[Path],
     *,
@@ -336,7 +360,23 @@ def ingest_file_paths(
         embed_model = _build_embed_model()
         vector_size = len(embed_model.get_text_embedding("dimension probe"))
         qdrant = QdrantStore()
-        qdrant.ensure_collection(vector_size=vector_size, recreate=recreate_collection)
+        if qdrant.collection_exists():
+            coll_dim = qdrant.collection_dense_vector_size()
+            if coll_dim is not None and coll_dim != vector_size:
+                raise ValueError(
+                    f"Embedding model outputs {vector_size} dimensions but Qdrant collection "
+                    f"{qdrant.collection_name!r} dense vector size is {coll_dim}. "
+                    "Set OPENAI_EMBED_DIMENSIONS (v3 models) or OPENAI_EMBED_MODEL so dimensions match "
+                    "the collection, or delete the collection and reingest with recreate_collection=True."
+                )
+        use_hybrid_ingest = QDRANT_HYBRID_ENABLED and (
+            recreate_collection or not qdrant.collection_exists() or qdrant.is_hybrid_collection()
+        )
+
+        if use_hybrid_ingest:
+            qdrant.ensure_hybrid_collection(vector_size, recreate=recreate_collection)
+        else:
+            qdrant.ensure_collection(vector_size=vector_size, recreate=recreate_collection)
 
         if replace_existing_documents:
             for file_path in normalized_file_paths:
@@ -348,35 +388,56 @@ def ingest_file_paths(
                 name="embedding_and_indexing",
                 status="running",
                 progress=80,
-                message="Embedding chunks and storing vectors in Qdrant.",
+                message="Embedding chunks and storing dense + sparse vectors in Qdrant."
+                if use_hybrid_ingest
+                else "Embedding chunks and storing vectors in Qdrant.",
                 details={"vector_size": vector_size, "nodes_generated": len(nodes)},
             )
         )
         storage_context = StorageContext.from_defaults(
-            vector_store=qdrant.get_vector_store(),
+            vector_store=qdrant.get_hybrid_vector_store()
+            if use_hybrid_ingest
+            else qdrant.get_vector_store(),
         )
-        VectorStoreIndex(
-            nodes=nodes,
-            storage_context=storage_context,
-            embed_model=embed_model,
-        )
-
-        stages.append(
-            _emit_progress(
-                progress_callback,
-                name="persisting_bm25_cache",
-                status="running",
-                progress=92,
-                message="Persisting lexical retrieval cache.",
-                details={"bm25_cache_path": str(BM25_CACHE_PATH)},
+        try:
+            VectorStoreIndex(
+                nodes=nodes,
+                storage_context=storage_context,
+                embed_model=embed_model,
             )
-        )
+        except Exception as exc:
+            detail = _extract_qdrant_error_message(exc)
+            _log.error("Qdrant vector upsert failed: %s", detail, exc_info=True)
+            hint = ""
+            low = detail.lower()
+            if "point id" in low or "valid values are either" in low:
+                hint = (
+                    " (Point IDs must be UUID or unsigned integer for REST JSON; "
+                    "this app maps non-UUID node ids to deterministic UUIDs.)"
+                )
+            if "vector dimension" in low or "expected dim" in low:
+                hint += (
+                    " Set OPENAI_EMBED_MODEL / OPENAI_EMBED_DIMENSIONS to match "
+                    "`dense-vector` size (yours is 1536), or recreate the collection."
+                )
+            if "not existing vector name" in low:
+                hint += (
+                    " Set QDRANT_DENSE_VECTOR_NAME / QDRANT_SPARSE_VECTOR_NAME to "
+                    "`dense-vector` / `sparse-vector`, or recreate_collection=True."
+                )
+            raise RuntimeError(f"Qdrant vector upsert failed: {detail}.{hint}") from exc
 
-        rebuild_bm25_cache_from_files(
-            list_source_files(),
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
+        if use_hybrid_ingest:
+            stages.append(
+                _emit_progress(
+                    progress_callback,
+                    name="indexing_sparse_vectors",
+                    status="running",
+                    progress=92,
+                    message="Lexical sparse vectors indexed in Qdrant (hybrid-ready).",
+                    details={"hybrid": True},
+                )
+            )
 
         stages.append(
             _emit_progress(
@@ -399,8 +460,8 @@ def ingest_file_paths(
             nodes_indexed=len(nodes),
             collection_name=qdrant.collection_name,
             qdrant_points=qdrant.count(),
-            bm25_cache_path=str(BM25_CACHE_PATH),
             stages=stages,
+            bm25_cache_path="",
         )
     except Exception as exc:
         stages.append(

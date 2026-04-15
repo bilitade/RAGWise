@@ -113,8 +113,6 @@ class UsageEvent(Base):
 
 
 class Document(Base):
-    """Indexed file metadata (Qdrant holds vectors; BM25 uses a separate lexical cache file)."""
-
     __tablename__ = "documents"
 
     document_id: Mapped[str] = mapped_column(String(128), primary_key=True)

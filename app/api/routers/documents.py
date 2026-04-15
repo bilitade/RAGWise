@@ -18,7 +18,12 @@ from app.core.rbac import SearchMode, user_can_use_search_mode
 from app.db.models import JobType, User
 from app.db.session import get_db
 from app.documents.service import delete_document, get_document_by_id, list_documents, save_uploaded_file
-from app.ingestion.tasks import get_task_result, ingest_documents_task, reindex_document_task
+from app.ingestion.tasks import (
+    get_task_result,
+    ingest_documents_task,
+    reindex_document_task,
+    sync_stale_documents_task,
+)
 from app.retrieval.retrieval import advanced_search, bm25_search, similarity_search
 from app.services.jobs_repo import record_job
 from app.services.usage_events import record_usage
@@ -209,6 +214,32 @@ def ingest_all_documents_route(
     return DocumentJobResponse(task_id=task.id, status=task.status, document=None)
 
 
+@router.post("/sync-stale", response_model=DocumentJobResponse)
+def sync_stale_documents_route(
+    chunk_size: int | None = Query(None),
+    chunk_overlap: int | None = Query(None),
+    user: User | None = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> DocumentJobResponse:
+    """Queue re-ingest for files changed on disk since last index."""
+    _validate_chunk_params(chunk_size, chunk_overlap, user)
+    _quota_check(user, db)
+    task = sync_stale_documents_task.delay(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+    uid = user.id if user else None
+    record_job(
+        db,
+        celery_task_id=task.id,
+        job_type=JobType.ingest,
+        created_by_user_id=uid,
+        meta={"mode": "sync-stale", "chunk_size": chunk_size, "chunk_overlap": chunk_overlap},
+    )
+    _quota_commit(user, db, "POST /api/documents/sync-stale")
+    return DocumentJobResponse(task_id=task.id, status=task.status, document=None)
+
+
 @router.get("/jobs/{task_id}", response_model=IngestionJobStatusResponse)
 def get_document_job(
     task_id: str,
@@ -326,6 +357,7 @@ def advanced_document_search(
         top_k=payload.top_k,
         vector_top_k=payload.vector_top_k,
         bm25_top_k=payload.bm25_top_k,
+        alpha=payload.hybrid_alpha,
     )
     _quota_commit(user, db, "POST /api/documents/search/advanced")
     return RetrievalResponse(results=results)

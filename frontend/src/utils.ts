@@ -1,4 +1,3 @@
-/** Re-exports from `src/lib/*`. */
 export * from "./lib/storageKeys";
 export * from "./lib/api";
 export * from "./lib/routing";

@@ -60,7 +60,26 @@ UPLOAD_DIR = Path(get_env("DOCUMENTS_DIR", str(PROJECT_ROOT / "upload")))
 QDRANT_URL = get_env("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = get_env("QDRANT_COLLECTION", "knowledge_base")
 QDRANT_TIMEOUT = get_float_env("QDRANT_TIMEOUT", 10.0)
-BM25_CACHE_PATH = DB_DIR / f"{QDRANT_COLLECTION}_nodes.jsonl"
+# Hybrid: Qdrant dense + sparse. False: dense-only LlamaIndex path.
+QDRANT_HYBRID_ENABLED = get_bool_env("QDRANT_HYBRID_ENABLED", True)
+QDRANT_SPARSE_MODEL = get_env("QDRANT_SPARSE_MODEL", "prithivida/Splade_PP_en_v1")
+# Must match the collection’s named vectors.
+QDRANT_DENSE_VECTOR_NAME = get_env("QDRANT_DENSE_VECTOR_NAME", "dense-vector")
+QDRANT_SPARSE_VECTOR_NAME = get_env("QDRANT_SPARSE_VECTOR_NAME", "sparse-vector")
+QDRANT_SPARSE_USE_IDF = get_bool_env("QDRANT_SPARSE_USE_IDF", True)
+
+QDRANT_HNSW_M = get_int_env("QDRANT_HNSW_M", 24)
+QDRANT_HNSW_PAYLOAD_M = get_int_env("QDRANT_HNSW_PAYLOAD_M", 24)
+QDRANT_HNSW_EF_CONSTRUCT = get_int_env("QDRANT_HNSW_EF_CONSTRUCT", 256)
+QDRANT_HNSW_FULL_SCAN_THRESHOLD_KB = get_int_env("QDRANT_HNSW_FULL_SCAN_THRESHOLD_KB", 0)
+QDRANT_QUERY_HNSW_EF = get_int_env("QDRANT_QUERY_HNSW_EF", 128)
+QDRANT_DENSE_ON_DISK = get_bool_env("QDRANT_DENSE_ON_DISK", False)
+QDRANT_SPARSE_ON_DISK = get_bool_env("QDRANT_SPARSE_ON_DISK", True)
+QDRANT_SPARSE_FULL_SCAN_THRESHOLD = get_int_env("QDRANT_SPARSE_FULL_SCAN_THRESHOLD", 0)
+QDRANT_DENSE_DATATYPE = (get_env("QDRANT_DENSE_DATATYPE", "float32") or "float32").lower()
+# Dense weight in hybrid fusion; sparse gets 1 - alpha.
+QDRANT_HYBRID_ALPHA = max(0.0, min(1.0, get_float_env("QDRANT_HYBRID_ALPHA", 0.6)))
+
 DOCUMENT_REGISTRY_PATH = DB_DIR / f"{QDRANT_COLLECTION}_documents.json"
 
 REDIS_URL = get_env("REDIS_URL", "redis://localhost:6379/0")
@@ -70,6 +89,14 @@ CELERY_RESULT_BACKEND = get_env("CELERY_RESULT_BACKEND", REDIS_URL)
 OPENAI_MODEL = get_env("OPENAI_MODEL", "gpt-4.1-mini")
 RAGAS_EVAL_MODEL = get_env("RAGAS_EVAL_MODEL") or OPENAI_MODEL
 OPENAI_EMBED_MODEL = get_env("OPENAI_EMBED_MODEL", "text-embedding-3-small")
+# Optional; must match the collection dense vector size.
+_raw_embed_dim = get_env("OPENAI_EMBED_DIMENSIONS")
+try:
+    OPENAI_EMBED_DIMENSIONS: int | None = (
+        int(_raw_embed_dim) if (_raw_embed_dim and _raw_embed_dim.strip()) else None
+    )
+except ValueError:
+    OPENAI_EMBED_DIMENSIONS = None
 MODEL_PROVIDER = get_env("MODEL_PROVIDER", "openai")
 
 COMPANY_NAME = (get_env("COMPANY_NAME") or "").strip()

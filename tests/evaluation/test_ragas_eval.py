@@ -15,7 +15,7 @@ from app.evaluation.ragas_eval import (
     mean_scores,
     run_ragas,
 )
-from app.retrieval.retrieval import SearchResult
+from app.retrieval.models import SearchResult
 
 
 def test_hits_to_contexts_omits_blank_chunks() -> None:

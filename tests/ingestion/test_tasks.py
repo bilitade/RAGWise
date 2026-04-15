@@ -117,7 +117,6 @@ def test_ingest_documents_task_emits_stage_history(
             nodes_indexed=3,
             collection_name="knowledge_base",
             qdrant_points=3,
-            bm25_cache_path=str(tmp_path / "knowledge_base_nodes.jsonl"),
             stages=[
                 IngestionStage(
                     name="completed",
@@ -127,6 +126,7 @@ def test_ingest_documents_task_emits_stage_history(
                     details={"documents_indexed": 1, "nodes_indexed": 3},
                 )
             ],
+            bm25_cache_path="",
         )
 
     monkeypatch.setattr("app.ingestion.tasks.ingest_documents", fake_ingest_documents)

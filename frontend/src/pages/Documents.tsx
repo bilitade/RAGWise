@@ -88,6 +88,7 @@ export default function Documents({
   const [uploading, setUploading] = useState(false);
   const [uploadingAndIngesting, setUploadingAndIngesting] = useState(false);
   const [bulkIngesting, setBulkIngesting] = useState(false);
+  const [syncStaleIngesting, setSyncStaleIngesting] = useState(false);
   const [activeJob, setActiveJob] = useState<IngestionJob | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -242,6 +243,32 @@ export default function Documents({
       setActionError(error instanceof Error ? error.message : "Reingestion failed to start.");
     } finally {
       setBulkIngesting(false);
+    }
+  }
+
+  async function handleSyncStale() {
+    setSyncStaleIngesting(true);
+    setActionError(null);
+    setActionMessage(null);
+    try {
+      const job = await fetchJson<{ task_id: string; status: string }>(
+        `${API_BASE_URL}/api/documents/sync-stale`,
+        { method: "POST" },
+      );
+      setActiveJob({
+        task_id: job.task_id,
+        status: job.status,
+        successful: false,
+        failed: false,
+        stage_history: [],
+      });
+      onTabChange("ingestion");
+      setActionMessage("Sync-stale job started (changed files only).");
+      await loadDocuments();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Sync stale failed to start.");
+    } finally {
+      setSyncStaleIngesting(false);
     }
   }
 
@@ -419,10 +446,19 @@ export default function Documents({
           <button
             type="button"
             onClick={() => void handleIngestAll()}
-            disabled={bulkIngesting}
+            disabled={bulkIngesting || syncStaleIngesting}
             className="brand-primary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
           >
             {bulkIngesting ? "Queueing…" : "Reingest all files"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSyncStale()}
+            disabled={bulkIngesting || syncStaleIngesting}
+            className="brand-secondary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            title="Reindex only files that changed on disk since the last successful index (vectors and BM25 updated together)."
+          >
+            {syncStaleIngesting ? "Queueing…" : "Sync changed files"}
           </button>
         </div>
       </DocSection>
@@ -516,7 +552,14 @@ export default function Documents({
                 <div key={result.node_id} className="brand-elevated rounded-2xl p-4">
                   <div className="flex items-center justify-between gap-3 text-xs">
                     <span className="text-muted font-medium uppercase tracking-wide">{String(result.metadata.filename ?? result.source)}</span>
-                    <span className="status-data font-mono tabular-nums">{result.score.toFixed(4)}</span>
+                    <span className="status-data text-right font-mono tabular-nums">
+                      {result.score.toFixed(4)}
+                      {result.score_kind ? (
+                        <span className="text-muted ml-2 block text-[10px] font-normal normal-case tracking-normal">
+                          {result.score_kind}
+                        </span>
+                      ) : null}
+                    </span>
                   </div>
                   <p className="mt-3 text-sm leading-relaxed">{result.text}</p>
                   <div className="mt-3 flex flex-wrap gap-2">

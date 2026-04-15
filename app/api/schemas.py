@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.documents.service import ManagedDocument
 from app.ingestion.loader import IngestionResult
-from app.retrieval.retrieval import SearchResult
+from app.retrieval.models import SearchResult
 
 
 class HealthResponse(BaseModel):
@@ -45,6 +45,7 @@ class RetrievalRequest(BaseModel):
 class AdvancedRetrievalRequest(RetrievalRequest):
     vector_top_k: int = 10
     bm25_top_k: int = 10
+    hybrid_alpha: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class RetrievalResponse(BaseModel):

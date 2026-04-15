@@ -7,6 +7,7 @@ from app.documents.service import (
     ingest_all_documents,
     ingest_single_document,
     reindex_document,
+    reindex_stale_documents,
     sync_document_rows_after_paths,
 )
 from app.db.session import SessionLocal
@@ -154,8 +155,41 @@ def reindex_document_task(
     )
 
 
+@celery_app.task(bind=True, name="app.ingestion.tasks.sync_stale_documents_task")
+def sync_stale_documents_task(
+    self,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+) -> dict:
+    _apply_runtime_env()
+
+    def runner(progress_callback):
+        db = SessionLocal()
+        try:
+            return reindex_stale_documents(
+                db,
+                progress_callback=progress_callback,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+            )
+        finally:
+            db.close()
+
+    return _run_ingestion_task(
+        self,
+        task_name="Sync stale documents task",
+        runner=runner,
+    )
+
+
 def get_task_result(task_id: str) -> AsyncResult:
     return AsyncResult(task_id, app=celery_app)
 
 
-__all__ = ["get_task_result", "ingest_documents", "ingest_documents_task", "reindex_document_task"]
+__all__ = [
+    "get_task_result",
+    "ingest_documents",
+    "ingest_documents_task",
+    "reindex_document_task",
+    "sync_stale_documents_task",
+]

@@ -1,4 +1,4 @@
-"""RAGAS evaluation for the knowledge base. https://docs.ragas.io/en/stable/getstarted/rag_eval/"""
+"""RAGAS-based retrieval/answer evaluation."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ from typing import Any, Literal
 from langchain_openai import ChatOpenAI
 
 from app.config import OPENAI_MODEL, RAGAS_EVAL_MODEL
-from app.retrieval.retrieval import SearchResult, advanced_search, similarity_search
+from app.retrieval.models import SearchResult
+from app.retrieval.retrieval import advanced_search
+from app.retrieval.similarity_search import similarity_search
 
 RetrievalMode = Literal["vector", "hybrid"]
 
@@ -42,6 +44,7 @@ def retrieve_contexts(
     mode: RetrievalMode = "hybrid",
     vector_top_k: int = 10,
     bm25_top_k: int = 10,
+    hybrid_alpha: float | None = None,
 ) -> list[str]:
     """Vector or hybrid retrieval."""
     if mode == "vector":
@@ -52,6 +55,7 @@ def retrieve_contexts(
             top_k=top_k,
             vector_top_k=vector_top_k,
             bm25_top_k=bm25_top_k,
+            alpha=hybrid_alpha,
         )
     )
 

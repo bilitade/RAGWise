@@ -11,12 +11,12 @@ from app.db.models import Document as DocumentRow
 from app.db.qdrant import QdrantStore
 from app.ingestion.loader import (
     IngestionResult,
+    IngestionStage,
     ProgressCallback,
     build_document_id,
     ingest_documents,
     ingest_file_paths,
     list_source_files,
-    rebuild_bm25_cache_from_files,
 )
 from app.services.documents_repo import (
     delete_document_row,
@@ -196,6 +196,56 @@ def reindex_document(
     )
 
 
+def reindex_stale_documents(
+    db: Session,
+    *,
+    progress_callback: ProgressCallback | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+) -> IngestionResult:
+    """Reindex every file whose content differs from the last successful index (vectors + BM25 in one run)."""
+    stale_paths: list[Path] = []
+    for doc in list_documents(db):
+        if not doc.needs_reindex:
+            continue
+        path = Path(doc.absolute_path)
+        if path.is_file():
+            stale_paths.append(path)
+
+    if not stale_paths:
+        qdrant = QdrantStore()
+        q_points = qdrant.count() if qdrant.collection_exists() else 0
+        return IngestionResult(
+            input_dir=str(UPLOAD_DIR),
+            recreate_collection=False,
+            documents_indexed=0,
+            nodes_indexed=0,
+            collection_name=qdrant.collection_name,
+            qdrant_points=q_points,
+            stages=[
+                IngestionStage(
+                    name="completed",
+                    status="completed",
+                    progress=100,
+                    message="No stale documents; index unchanged.",
+                    details={"stale_paths": 0},
+                )
+            ],
+            bm25_cache_path="",
+        )
+
+    result = ingest_file_paths(
+        stale_paths,
+        recreate_collection=False,
+        replace_existing_documents=True,
+        progress_callback=progress_callback,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+    _sync_documents_for_paths(db, stale_paths, replace_all=False)
+    return result
+
+
 def delete_document(db: Session, document_id: str) -> ManagedDocument:
     document = get_document_by_id(db, document_id)
     file_path = Path(document.absolute_path)
@@ -209,11 +259,9 @@ def delete_document(db: Session, document_id: str) -> ManagedDocument:
     if file_path.exists():
         file_path.unlink()
 
-    rebuild_bm25_cache_from_files(list_source_files())
-
     return document
 
 
 def sync_document_rows_after_paths(db: Session, paths: list[Path]) -> None:
-    """Update SQL document rows after a raw `ingest_documents` (loader) run. BM25 is rebuilt inside `ingest_file_paths`."""
+    """Update SQL document rows after a raw `ingest_documents` (loader) run."""
     _sync_documents_for_paths(db, paths, replace_all=False)
