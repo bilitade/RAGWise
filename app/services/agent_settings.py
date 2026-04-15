@@ -164,13 +164,19 @@ def build_agent_tools_list(
     *,
     runtime_config: RuntimeModelConfig | None = None,
 ):
-    from app.agent.tools import make_internet_search_tool, make_knowledge_base_search_tool
+    from app.agent.tools import (
+        make_internet_search_tool,
+        make_knowledge_base_search_tool,
+        make_multi_source_research_tool,
+    )
 
     tools: list = []
     if load_tool_knowledge_base_enabled(db):
         tools.append(make_knowledge_base_search_tool(runtime_config))
     if load_tool_internet_enabled(db):
         tools.append(make_internet_search_tool())
+    if load_tool_knowledge_base_enabled(db) or load_tool_internet_enabled(db):
+        tools.append(make_multi_source_research_tool(runtime_config))
     return tools
 
 

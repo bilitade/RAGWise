@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.agent import astream_agent_events
 from app.agent.citations import append_citations_footer, dedupe_citation_items
+from app.agent.file_artifacts import append_visible_citations, ensure_file_artifact_response, wants_file_artifact
 from app.api.schemas import (
     ChatMessagesListResponse,
     ChatMessageResponse,
@@ -112,6 +113,7 @@ def _title_from_user_text(text: str) -> str:
 async def _stream_chat(
     agent_messages: list[dict[str, str]],
     *,
+    latest_user_message: str,
     system_prompt: str,
     model_name: str,
     tools: list,
@@ -145,14 +147,25 @@ async def _stream_chat(
                     all_citations.extend(batch)
                     yield _sse("citations", {"items": batch})
         extra: dict = {"status": "completed", "trace_hint": trace_hint}
+        is_file_request = wants_file_artifact(latest_user_message)
+        if is_file_request:
+            yield _sse("status", {"label": "Generating File"})
         if persist_thread_id:
             text = "".join(assistant_text).strip()
+            text = ensure_file_artifact_response(latest_user_message, text)
             merged = dedupe_citation_items(all_citations)
+            text = append_visible_citations(text, merged)
             body = append_citations_footer(text, merged)
             if body:
                 append_message(db, persist_thread_id, role="assistant", content=body)
                 db.commit()
             extra["thread_id"] = str(persist_thread_id)
+            extra["final_text"] = body
+        else:
+            text = ensure_file_artifact_response(latest_user_message, "".join(assistant_text).strip())
+            merged = dedupe_citation_items(all_citations)
+            text = append_visible_citations(text, merged)
+            extra["final_text"] = append_citations_footer(text, merged)
         yield _sse("done", extra)
     except Exception as exc:
         yield _sse("error", {"error": _friendly_stream_error(exc)})
@@ -338,9 +351,15 @@ def stream_chat(
             raise HTTPException(status_code=400, detail="At least one user or assistant message is required")
         system_prompt = resolve_full_system_prompt(db, persona_id=active_persona_id)
 
+    latest_user_message = next(
+        (message["content"] for message in reversed(agent_messages) if message.get("role") == "user"),
+        "",
+    )
+
     return StreamingResponse(
         _stream_chat(
             agent_messages,
+            latest_user_message=latest_user_message,
             system_prompt=system_prompt,
             model_name=model_name,
             tools=agent_tools,

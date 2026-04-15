@@ -76,10 +76,12 @@ def build_agent(
 
 def _tool_status_label(tool_name: str | None) -> str:
     normalized = (tool_name or "").strip().lower().replace("_", " ")
+    if "multi source" in normalized:
+        return "Researching Multiple Sources"
     if "knowledge" in normalized:
-        return "Searching the knowledge base"
+        return "Retrieving Knowledge Base"
     if "internet" in normalized or "web" in normalized or "search" in normalized:
-        return "Searching the web"
+        return "Searching Web"
     return f"Using {tool_name or 'a tool'}"
 
 
@@ -95,6 +97,25 @@ def _extract_text_from_chunk(chunk: Any) -> str:
             elif isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
                 parts.append(item["text"])
         return "".join(parts)
+    return ""
+
+
+def _extract_reasoning_from_chunk(chunk: Any) -> str:
+    """Extract reasoning/thinking content from a model chunk if available."""
+    # Standard OpenAI reasoning_content
+    reasoning = getattr(chunk, "additional_kwargs", {}).get("reasoning_content")
+    if reasoning:
+        return reasoning
+    
+    # Try alternate fields (some models use 'thought')
+    thought = getattr(chunk, "additional_kwargs", {}).get("thought")
+    if thought:
+        return thought
+
+    # LangChain specific or other providers
+    if hasattr(chunk, "reasoning_content") and chunk.reasoning_content:
+        return str(chunk.reasoning_content)
+
     return ""
 
 
@@ -143,28 +164,52 @@ async def astream_agent_events(
             cite_items = citations_from_tool_output(runnable_name, raw_out)
             if cite_items:
                 yield {"type": "citations", "items": cite_items}
+            
+            # After a tool, the agent usually reasons about the results
             current_status = "Reasoning over results"
             yield {"type": "status", "label": current_status}
             continue
 
         if event_name == "on_chat_model_start" and not yielded_token:
-            current_status = "Thinking"
-            yield {"type": "status", "label": current_status}
+            if current_status not in ("Searching Web", "Retrieving Knowledge Base"):
+                current_status = "Thinking"
+                yield {"type": "status", "label": current_status}
             continue
 
         if event_name == "on_chat_model_stream":
             chunk = event_data.get("chunk")
+            
+            # 1. Handle Reasoning/Thinking
+            reasoning = _extract_reasoning_from_chunk(chunk)
+            if reasoning:
+                yield {"type": "reasoning", "text": reasoning}
+                if current_status != "Thinking":
+                    current_status = "Thinking"
+                    yield {"type": "status", "label": current_status}
+                continue
+
+            # 2. Handle Content
             text = _extract_text_from_chunk(chunk)
             if text:
                 if not yielded_token:
                     yielded_token = True
-                    current_status = "Drafting answer"
+                    # If we see the file generation marker right at the start or early on
+                    if "[DOWNLOAD_FILE:" in text:
+                        current_status = "Generating File"
+                    else:
+                        current_status = "Drafting answer"
                     yield {"type": "status", "label": current_status}
+                
+                # Update status if file generation marker appears mid-stream
+                if "[DOWNLOAD_FILE:" in text and current_status != "Generating File":
+                    current_status = "Generating File"
+                    yield {"type": "status", "label": current_status}
+                
                 yield {"type": "token", "text": text}
             continue
 
-        if event_name == "on_chain_end" and yielded_token:
-            yield {"type": "status", "label": "Finalizing"}
+        if event_name == "on_chain_end":
+            yield {"type": "status", "label": "Ready"}
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the banking deep agent.")
     parser.add_argument("--query", help="Question to ask the agent.")

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { FiCheckCircle, FiClock, FiCpu, FiDatabase, FiEdit2, FiGlobe, FiXCircle } from "react-icons/fi";
+import { FiCheckCircle, FiClock, FiCpu, FiDatabase, FiEdit2, FiFileText, FiGlobe, FiXCircle } from "react-icons/fi";
 
 import AssistantMessageBody from "../AssistantMessageBody";
 import type { ChatCitation, ChatMessage } from "../../types";
@@ -15,8 +15,11 @@ type StatusConfig = {
 function getStatusConfig(status: string, streaming: boolean): StatusConfig {
   const normalized = status.toLowerCase();
 
+  if (normalized.includes("generating") || normalized.includes("file") || normalized.includes("artifact")) {
+    return { icon: <FiFileText />, label: "Generating File", color: "var(--accent)", pulse: true };
+  }
   if (normalized.includes("knowledge") || normalized.includes("retriev")) {
-    return { icon: <FiDatabase />, label: "Retrieving", color: "var(--primary)", pulse: true };
+    return { icon: <FiDatabase />, label: "Retrieving KB", color: "var(--primary)", pulse: true };
   }
   if (normalized.includes("web") || normalized.includes("internet") || normalized.includes("search")) {
     return { icon: <FiGlobe />, label: "Web Search", color: "var(--data)", pulse: true };
@@ -132,6 +135,11 @@ export default function ChatTranscript({
 
   return (
     <div className="chat-transcript flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 sm:gap-2.5 sm:pr-1">
+      {chatStreaming ? (
+        <div className="sticky top-0 z-10 mr-auto mb-2 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_88%,transparent)] px-3 py-1 text-[11px] font-semibold tracking-wide text-[var(--text-secondary)] backdrop-blur">
+          {chatStatus}
+        </div>
+      ) : null}
       {chatMessages.map((message, index) => {
         const isStreamingPlaceholder =
           chatStreaming &&
@@ -154,6 +162,7 @@ export default function ChatTranscript({
                 <AssistantMessageBody
                   content={assistantMessage.body}
                   citations={assistantMessage.citations}
+                  reasoning={message.reasoning}
                   conversationTitle={conversationTitle}
                 />
               )

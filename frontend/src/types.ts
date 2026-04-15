@@ -75,6 +75,7 @@ export type ChatMessage = {
     role: "user" | "assistant";
     content: string;
     citations?: ChatCitation[];
+    reasoning?: string;
 };
 
 export type ChatContextWindow = "min" | "medium" | "max";

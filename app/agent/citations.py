@@ -38,24 +38,80 @@ def citations_from_tool_output(tool_name: str | None, output: Any) -> list[dict[
             meta = r.get("metadata") or {}
             if not isinstance(meta, dict):
                 meta = {}
+            
+            # Extract label with more fallbacks
             label = (
                 meta.get("file_name")
                 or meta.get("filename")
                 or meta.get("file_path")
                 or meta.get("source")
+                or meta.get("title")
                 or meta.get("document_id")
+                or r.get("node_id")
                 or "Knowledge base"
             )
             if not isinstance(label, str):
                 label = str(label)
+            
+            # Clean up path-like labels
+            clean_label = label.split("/")[-1].split("\\")[-1]
+            if not clean_label:
+                clean_label = "Knowledge base"
+
             node_id = str(r.get("node_id") or "")
-            text = r.get("text") or ""
+            text = r.get("text") or r.get("content") or ""
+            items.append(
+                {
+                    "kind": "knowledge_base",
+                    "label": clean_label[:200],
+                    "detail": _trim(str(text), 220),
+                    "ref": node_id,
+                }
+            )
+        return items
+
+    if "multi_source_research" in name:
+        data: dict[str, Any] | None = None
+        raw = output
+        if isinstance(raw, dict) and "output" in raw and "knowledge_base_results" not in raw and "web_results" not in raw:
+            raw = raw.get("output")
+        if isinstance(raw, str):
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                return items
+        elif isinstance(raw, dict):
+            data = raw
+        if not data:
+            return items
+
+        for item in data.get("knowledge_base_results") or []:
+            if not isinstance(item, dict):
+                continue
+            label = str(item.get("label") or "Knowledge base")
+            node_id = str(item.get("node_id") or "")
+            text = str(item.get("text") or "")
             items.append(
                 {
                     "kind": "knowledge_base",
                     "label": label.split("/")[-1].split("\\")[-1][:200],
-                    "detail": _trim(str(text), 220),
+                    "detail": _trim(text, 220),
                     "ref": node_id,
+                }
+            )
+
+        for item in data.get("web_results") or []:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or "").strip()
+            title = str(item.get("title") or url or "Web").strip()
+            content = str(item.get("content") or "")
+            items.append(
+                {
+                    "kind": "web",
+                    "label": title[:300],
+                    "url": url,
+                    "detail": _trim(content, 240),
                 }
             )
         return items

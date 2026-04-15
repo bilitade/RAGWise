@@ -348,6 +348,20 @@ export default function Chat() {
           if (!event || !dataLine) continue;
           const payload = JSON.parse(dataLine.replace("data:", "").trim()) as Record<string, unknown>;
 
+          if (event === "reasoning" && typeof payload.text === "string" && payload.text) {
+            updateActiveConversation((conversation) => {
+              const updated = [...conversation.messages];
+              const lastIndex = updated.length - 1;
+              const prev = updated[lastIndex];
+              updated[lastIndex] = {
+                ...prev,
+                role: "assistant",
+                reasoning: `${prev?.reasoning ?? ""}${payload.text}`,
+              };
+              return { ...conversation, messages: updated, updatedAt: Date.now() };
+            });
+          }
+
           if (event === "token" && typeof payload.text === "string" && payload.text) {
             updateActiveConversation((conversation) => {
               const updated = [...conversation.messages];
@@ -416,6 +430,20 @@ export default function Chat() {
               ),
             );
             setActiveConversationId(tid);
+          }
+
+          if (event === "done" && typeof payload.final_text === "string" && payload.final_text) {
+            updateActiveConversation((conversation) => {
+              const updated = [...conversation.messages];
+              const lastIndex = updated.length - 1;
+              const previous = updated[lastIndex];
+              updated[lastIndex] = {
+                ...previous,
+                role: "assistant",
+                content: payload.final_text as string,
+              };
+              return { ...conversation, messages: updated, updatedAt: Date.now() };
+            });
           }
         }
       }
