@@ -4,7 +4,7 @@ import { LuPanelLeft } from "react-icons/lu";
 
 import { canAccessDocuments, canAccessSettings, useAuth } from "../auth";
 import type { ThemeMode } from "../types";
-import { navigateTo } from "../utils";
+import { goHome, navigateTo } from "../utils";
 import BrandWordmark from "./BrandWordmark";
 
 export const WORKSPACE_SIDEBAR_WIDTH = 280;
@@ -58,7 +58,7 @@ export function WorkspaceAppBar({
     <header className="flex shrink-0 flex-col border-b border-[var(--border)] pb-4">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <BrandWordmark />
+          <BrandWordmark onClick={goHome} />
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5" role="toolbar" aria-label="Workspace">
@@ -122,7 +122,7 @@ export function WorkspaceAppBar({
             </button>
 
             {profileMenuOpen && user && (
-              <div className="absolute right-0 top-full z-[100] mt-2 w-64 origin-top-right overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_90%,transparent)] p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 top-full z-[100] mt-2 w-64 origin-top-right overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_95%,transparent)] p-1.5 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-3.5 py-3">
                   <p className="truncate text-sm font-semibold text-[var(--text-primary)]" title={user.email}>
                     {user.email}
@@ -212,13 +212,13 @@ export function WorkspaceSidebarRail({ sidebarId, open, onOverlayDismiss, childr
       <aside
         id={sidebarId}
         aria-hidden={!open}
-        className={`z-40 min-w-0 shrink-0 overflow-hidden transition-[width,max-width,opacity] duration-300 ease-out motion-reduce:transition-none max-lg:shadow-2xl ${
+        className={`z-40 min-w-0 shrink-0 overflow-hidden transition-[width,max-width,opacity] duration-300 ease-out motion-reduce:transition-none max-lg:shadow-none ${
           open
             ? "fixed inset-y-0 left-0 flex h-[100dvh] min-h-[100dvh] max-h-[100dvh] w-[min(100vw-1rem,280px)] max-w-[280px] flex-col border-b-0 border-[var(--border)] opacity-100 max-lg:rounded-r-2xl max-lg:border-r lg:relative lg:inset-auto lg:top-auto lg:bottom-auto lg:z-auto lg:h-full lg:max-h-full lg:min-h-0 lg:w-[280px] lg:max-w-[280px] lg:self-stretch lg:border-0 lg:shadow-none"
             : "pointer-events-none hidden opacity-0 lg:flex lg:h-full lg:max-h-full lg:min-h-0 lg:w-0 lg:max-w-0 lg:self-stretch lg:border-0"
         }`}
       >
-        <div className="flex h-full min-h-0 w-full min-w-[min(280px,100vw-1rem)] max-w-[280px] flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_94%,transparent)] p-4 shadow-[0_1px_0_0_color-mix(in_srgb,var(--border)_80%,transparent)] lg:max-h-full lg:overflow-hidden">
+        <div className="flex h-full min-h-0 w-full min-w-[min(280px,100vw-1rem)] max-w-[280px] flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_94%,transparent)] p-4 lg:max-h-full lg:overflow-hidden">
           {children}
         </div>
       </aside>

@@ -25,7 +25,12 @@ from app.ingestion.tasks import (
     sync_stale_documents_task,
 )
 from app.retrieval.retrieval import advanced_search, bm25_search, similarity_search
-from app.services.jobs_repo import record_job
+from app.services.job_status import (
+    effective_celery_status,
+    effective_failed_bool,
+    effective_successful_bool,
+)
+from app.services.jobs_repo import get_job_by_celery_task_id, record_job
 from app.services.runtime_config import load_runtime_model_config
 from app.services.usage_events import record_usage
 from app.services.usage_limits import enforce_monthly_limit, record_billable_request
@@ -101,35 +106,46 @@ def _default_stage(task_id: str, status: str) -> dict:
     }
 
 
-def _build_job_status(task_id: str) -> IngestionJobStatusResponse:
+def _build_job_status(task_id: str, db: Session) -> IngestionJobStatusResponse:
+    job = get_job_by_celery_task_id(db, task_id)
     task = get_task_result(task_id)
+    status = effective_celery_status(job, task)
+
     stage = None
     stage_history: list[dict] = []
-    if isinstance(task.info, dict):
+    if job is not None and job.finished_at is not None and job.celery_state in ("SUCCESS", "FAILURE"):
+        stage = _default_stage(task.id, status)
+        stage_history = [stage]
+    elif isinstance(task.info, dict):
         stage = task.info.get("stage")
         if isinstance(task.info.get("stage_history"), list):
             stage_history = task.info["stage_history"]
     else:
-        stage = _default_stage(task.id, task.status)
+        stage = _default_stage(task.id, status)
         stage_history = [stage]
 
     if stage is None:
-        stage = _default_stage(task.id, task.status)
+        stage = _default_stage(task.id, status)
     if not stage_history:
         stage_history = [stage]
 
     result = None
     error = None
-    if task.successful() and isinstance(task.result, dict):
-        result = task.result
-    elif task.failed():
-        error = str(task.result)
+    if effective_successful_bool(job, task) and task.ready():
+        tr = task.result
+        if isinstance(tr, dict):
+            result = tr
+    elif effective_failed_bool(job, task):
+        if job is not None and job.error_message:
+            error = job.error_message
+        elif task.failed():
+            error = str(task.result)
 
     return IngestionJobStatusResponse(
         task_id=task.id,
-        status=task.status,
-        successful=task.successful(),
-        failed=task.failed(),
+        status=status,
+        successful=effective_successful_bool(job, task),
+        failed=effective_failed_bool(job, task),
         stage=stage,
         stage_history=stage_history,
         result=result,
@@ -251,9 +267,10 @@ def sync_stale_documents_route(
 def get_document_job(
     task_id: str,
     user: User | None = Depends(require_active_user),
+    db: Session = Depends(get_db),
 ) -> IngestionJobStatusResponse:
     _ = user
-    return _build_job_status(task_id)
+    return _build_job_status(task_id, db)
 
 
 @router.post("/{document_id}/reindex", response_model=DocumentJobResponse)

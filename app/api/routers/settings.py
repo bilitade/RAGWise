@@ -28,6 +28,7 @@ from app.core.security import hash_password
 from app.db.models import AgentPersona, AppSetting, User, UserRole
 from app.db.session import get_db
 from app.ingestion.tasks import get_task_result
+from app.services.job_status import effective_celery_status, effective_successful_optional
 from app.services.jobs_repo import list_jobs
 from app.services.langsmith_metrics import fetch_langsmith_project_metrics
 from app.services.agent_settings import (
@@ -425,6 +426,8 @@ def _jobs_rows(db: Session, limit: int) -> list[JobRow]:
     out: list[JobRow] = []
     for j in rows:
         tr = get_task_result(j.celery_task_id)
+        status = effective_celery_status(j, tr)
+        succ = effective_successful_optional(j, tr)
         out.append(
             JobRow(
                 id=str(j.id),
@@ -433,8 +436,8 @@ def _jobs_rows(db: Session, limit: int) -> list[JobRow]:
                 created_by_user_id=str(j.created_by_user_id) if j.created_by_user_id else None,
                 meta=j.meta,
                 created_at=j.created_at.isoformat(),
-                celery_status=tr.status,
-                celery_successful=tr.successful() if tr.ready() else None,
+                celery_status=status,
+                celery_successful=succ,
             )
         )
     return out

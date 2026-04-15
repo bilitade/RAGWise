@@ -90,6 +90,10 @@ class BackgroundJob(Base):
     )
     meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Terminal Celery state persisted when the worker finishes (Redis result may expire).
+    celery_state: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_by: Mapped["User | None"] = relationship(back_populates="background_jobs")
 

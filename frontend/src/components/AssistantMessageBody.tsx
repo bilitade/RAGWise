@@ -48,11 +48,11 @@ export default function AssistantMessageBody({
   return (
     <div className="chat-markdown">
       {reasoning ? (
-        <div className="mb-4 overflow-hidden rounded-r-xl border-l-4 border-l-[var(--primary)] border-y border-r border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]">
+        <div className="mb-3 overflow-hidden rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_55%,transparent)]">
           <button
             type="button"
             onClick={() => setReasoningExpanded(!reasoningExpanded)}
-            className="flex w-full items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[var(--primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
+            className="flex w-full items-center justify-between px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-secondary transition-colors hover:bg-[color-mix(in_srgb,var(--text-primary)_4%,transparent)]"
           >
             <div className="flex items-center gap-2">
               <FiCpu className="size-3.5" />
@@ -61,7 +61,7 @@ export default function AssistantMessageBody({
             {reasoningExpanded ? <FiChevronUp /> : <FiChevronDown />}
           </button>
           {reasoningExpanded && (
-            <div className="border-t border-[color-mix(in_srgb,var(--primary)_10%,transparent)] px-3 py-2.5 text-[12px] leading-relaxed text-[var(--text-secondary)] italic">
+            <div className="border-t border-[var(--border)] px-3 py-2 text-[13px] leading-relaxed text-secondary italic">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{reasoning}</ReactMarkdown>
             </div>
           )}
@@ -69,14 +69,14 @@ export default function AssistantMessageBody({
       ) : null}
 
       {showSuggestedDocument ? (
-        <div className="chat-artifact-suggestion brand-elevated mx-auto mb-6 flex w-full items-center justify-between gap-4 rounded-2xl p-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="chat-artifact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white">
-              <FiFileText className="size-5" strokeWidth={2.25} />
+        <div className="chat-artifact-suggestion mx-auto mb-5 flex w-full items-center justify-between gap-3 rounded-xl p-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="chat-artifact-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)] text-white">
+              <FiFileText className="size-[1.1rem]" strokeWidth={2.25} />
             </div>
             <div className="min-w-0">
-              <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Document</div>
-              <div className="truncate text-sm font-semibold">{downloadableMessage.spec.filename}</div>
+              <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted">Document</div>
+              <div className="truncate text-sm font-medium">{downloadableMessage.spec.filename}</div>
             </div>
           </div>
           <button
@@ -87,7 +87,7 @@ export default function AssistantMessageBody({
                 downloadableMessage.content,
               )
             }
-            className="brand-primary shrink-0 flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all hover:scale-105 active:scale-95"
+            className="brand-primary flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors hover:brightness-105"
           >
             <FiDownload />
             Download
@@ -139,9 +139,9 @@ export default function AssistantMessageBody({
       )}
 
       {citations && citations.length > 0 ? (
-        <div className="chat-sources mt-6 border-t border-[var(--border)] pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-muted text-[10px] font-bold uppercase tracking-widest">Sources & Citations</div>
+        <div className="chat-sources mt-5 border-t border-[var(--border)] pt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-muted text-[10px] font-semibold uppercase tracking-wide">Sources</div>
             <div className="flex gap-2">
               <span className="flex items-center gap-1 text-[9px] font-medium text-muted">
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)] opacity-60" /> Knowledge base
@@ -156,7 +156,7 @@ export default function AssistantMessageBody({
             {citations.map((c, i) => (
               <div
                 key={`${c.kind}-${c.label}-${c.url ?? c.ref ?? i}`}
-                className="chat-source-card group flex flex-col rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_40%,transparent)] p-3 transition-all hover:border-[color-mix(in_srgb,var(--primary)_30%,transparent)] hover:bg-[color-mix(in_srgb,var(--surface)_80%,transparent)]"
+                className="chat-source-card group flex flex-col rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_50%,transparent)] p-2.5 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_22%,var(--border))]"
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span

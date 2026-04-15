@@ -2,15 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import {
   FiActivity,
   FiBarChart2,
+  FiBookOpen,
+  FiBriefcase,
   FiCpu,
+  FiEdit3,
   FiExternalLink,
   FiFileText,
+  FiGlobe,
+  FiHardDrive,
   FiKey,
   FiLayers,
   FiSettings,
+  FiShield,
   FiTerminal,
   FiUsers,
 } from "react-icons/fi";
+import { SiOpenai } from "react-icons/si";
 
 import type { SettingsTab } from "../types";
 import {
@@ -245,6 +252,18 @@ function SectionCard({
   );
 }
 
+/** OpenAI glyph tinted with app primary (matches sidebar active states and buttons). */
+function OpenAIBrandMark({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_30%,transparent)] ${className}`}
+      aria-hidden
+    >
+      <SiOpenai className="size-[1.05rem] text-[var(--primary)]" />
+    </span>
+  );
+}
+
 type SettingsConfigPayload = {
   model_provider: string;
   default_chat_model: string;
@@ -335,82 +354,101 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
 
   return (
     <SectionCard title="API credentials & defaults">
-      <p className="text-muted mb-4 max-w-2xl text-[13px] leading-snug">
+      <p className="text-muted mb-5 max-w-2xl text-[13px] leading-snug">
         Values saved here are stored in the database and take priority. If a value is not in the database, the API falls back to the matching
         environment variable (for example <code className="font-mono text-[11px]">OPENAI_MODEL</code>,{" "}
         <code className="font-mono text-[11px]">MODEL_PROVIDER</code>, or <code className="font-mono text-[11px]">OPENAI_API_KEY</code>).
       </p>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-4 lg:col-span-2">
-          <div className="brand-elevated flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-sm">
-            <span className="text-secondary">OpenAI key status:</span>
-            <span className={configured ? "status-success font-medium" : "status-warning font-medium"}>
-              {configured ? `Configured (${last4 ?? "••••"})` : "Not set"}
-            </span>
-          </div>
-        </div>
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="text-secondary font-medium">Model provider</span>
-          <select
-            className="brand-input mt-1 rounded-xl px-4 py-2.5"
-            value={modelProvider}
-            onChange={(e) => setModelProvider(e.target.value)}
-            aria-label="Model provider"
-          >
-            {providerOptions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="text-secondary font-medium">Default chat model</span>
-          <select
-            className="brand-input mt-1 rounded-xl px-4 py-2.5"
-            value={chatModel}
-            onChange={(e) => setChatModel(e.target.value)}
-            aria-label="Default chat model"
-          >
-            {chatModelOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
-          <span className="text-secondary font-medium">Default embedding model</span>
-          <select
-            className="brand-input mt-1 rounded-xl px-4 py-2.5"
-            value={embedModel}
-            onChange={(e) => setEmbedModel(e.target.value)}
-            aria-label="Default embedding model"
-          >
-            {embedModelOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
-          <span className="text-secondary font-medium">OpenAI API key</span>
-          <input
-            type="password"
-            className="brand-input mt-1 rounded-xl px-4 py-2.5"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            autoComplete="new-password"
-            placeholder="sk-…"
-          />
-          <p className="text-muted max-w-xl text-[12px] leading-snug">
-            A key saved here is stored in the database and used by chat, retrieval, and ingestion jobs. Paste a full key and click Save. If you
-            only use environment variables instead, restart the API and worker after changing them.
-          </p>
-        </label>
+
+      <div className="mb-5 flex flex-wrap items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--primary)_22%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] px-3 py-2.5 text-sm">
+        <FiKey className="size-4 shrink-0 text-[var(--primary)]" aria-hidden />
+        <span className="text-secondary">API key</span>
+        <span className={configured ? "status-success font-medium" : "status-warning font-medium"}>
+          {configured ? `configured (${last4 ?? "••••"})` : "not set"}
+        </span>
       </div>
-      <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-5">
+
+      <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
+        <div className="flex gap-3 sm:items-start">
+          <OpenAIBrandMark className="mt-0.5" />
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Model provider</span>
+            <select
+              className="brand-input rounded-xl px-4 py-2.5"
+              value={modelProvider}
+              onChange={(e) => setModelProvider(e.target.value)}
+              aria-label="Model provider"
+            >
+              {providerOptions.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex gap-3 sm:items-start">
+          <OpenAIBrandMark className="mt-0.5" />
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Chat model</span>
+            <select
+              className="brand-input rounded-xl px-4 py-2.5"
+              value={chatModel}
+              onChange={(e) => setChatModel(e.target.value)}
+              aria-label="Default chat model"
+            >
+              {chatModelOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex gap-3 sm:items-start lg:col-span-2">
+          <OpenAIBrandMark className="mt-0.5" />
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Embedding model</span>
+            <select
+              className="brand-input rounded-xl px-4 py-2.5"
+              value={embedModel}
+              onChange={(e) => setEmbedModel(e.target.value)}
+              aria-label="Default embedding model"
+            >
+              {embedModelOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="flex gap-3 sm:items-start lg:col-span-2">
+          <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_30%,transparent)]">
+            <FiKey className="size-4 text-[var(--primary)]" aria-hidden />
+          </span>
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">OpenAI API key</span>
+            <input
+              type="password"
+              className="brand-input rounded-xl px-4 py-2.5"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              autoComplete="new-password"
+              placeholder="sk-…"
+            />
+            <p className="text-muted max-w-xl text-[12px] leading-snug">
+              Stored in the database for chat, retrieval, and ingestion. Paste a full key and save. If you use env vars only, restart the API
+              and worker after changes.
+            </p>
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
         <button type="button" onClick={() => void save()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
           Save
         </button>
@@ -689,126 +727,142 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
   const c = agentConfig;
 
   return (
-    <div className="space-y-8">
-      <SectionCard
-        title="Agent"
-        description="Configure your organization’s agent in one place: identity, guardrails, guidelines, and optional custom instructions. How the agent selects and uses tools follows the product defaults and is not edited here. Everyone in the workspace uses these settings in chat."
-      >
-        {!behaviorReady || !c ? (
-          <p className="text-secondary text-sm">Loading…</p>
-        ) : (
-          <div className="mx-auto max-w-2xl space-y-8">
-            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
-              <p className="text-secondary text-sm leading-relaxed">Identity</p>
-              <label className="mt-4 block">
-                <span className="text-[13px] font-medium text-[var(--text-primary)]">Organization name</span>
-                <span className="text-muted mt-1 block text-[13px] leading-snug">
-                  Optional. Helps responses stay aligned with your brand.
-                </span>
-                <input
-                  className="brand-input mt-3 w-full rounded-xl px-4 py-3"
-                  placeholder="e.g. Your company name"
-                  value={c.company_display_name}
-                  onChange={(e) => setAgentConfig({ ...c, company_display_name: e.target.value })}
-                  autoComplete="organization"
-                />
-              </label>
+    <SectionCard
+      title="Agent"
+      description="Workspace-wide behavior in chat: identity, tools, guardrails, and optional custom instructions."
+    >
+      {!behaviorReady || !c ? (
+        <p className="text-secondary text-sm">Loading…</p>
+      ) : (
+        <div className="max-w-2xl divide-y divide-[var(--border)]">
+          <div className="flex gap-3 pb-4">
+            <FiBriefcase className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Identity</h3>
+                <p className="text-muted text-[12px] leading-snug">Optional organization name for brand-aligned replies.</p>
+              </div>
+              <input
+                className="brand-input w-full rounded-lg px-3 py-2 text-sm"
+                placeholder="e.g. Your company name"
+                value={c.company_display_name}
+                onChange={(e) => setAgentConfig({ ...c, company_display_name: e.target.value })}
+                autoComplete="organization"
+              />
             </div>
+          </div>
 
-            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
-              <p className="text-secondary text-sm leading-relaxed">Capabilities</p>
-              <p className="text-muted mt-1 text-[13px] leading-snug">Choose what the agent is allowed to use when answering.</p>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <label className="flex cursor-pointer gap-3 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_35%,transparent)] p-4 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_25%,var(--border))] has-[:checked]:border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_6%,transparent)]">
+          <div className="flex gap-3 py-4">
+            <FiLayers className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
+            <div className="min-w-0 flex-1 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Capabilities</h3>
+                <p className="text-muted text-[12px] leading-snug">Allowed tools when answering.</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="flex cursor-pointer gap-2.5 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_45%,transparent)] px-3 py-2.5 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_22%,var(--border))] has-[:checked]:border-[color-mix(in_srgb,var(--primary)_38%,var(--border))] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]">
                   <input
                     type="checkbox"
-                    className="mt-0.5 size-4 shrink-0 rounded border-[var(--border)]"
+                    className="mt-0.5 size-3.5 shrink-0 rounded border-[var(--border)]"
                     checked={c.tool_knowledge_base}
                     onChange={(e) => setAgentConfig({ ...c, tool_knowledge_base: e.target.checked })}
                   />
-                  <span>
-                    <span className="block text-sm font-medium text-[var(--text-primary)]">Internal documents</span>
-                    <span className="text-muted mt-0.5 block text-[12px] leading-snug">Search your indexed knowledge base</span>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
+                      <FiHardDrive className="size-3.5 shrink-0 opacity-80" aria-hidden />
+                      Internal docs
+                    </span>
+                    <span className="text-muted mt-0.5 block text-[11px] leading-snug">Knowledge base search</span>
                   </span>
                 </label>
-                <label className="flex cursor-pointer gap-3 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_35%,transparent)] p-4 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_25%,var(--border))] has-[:checked]:border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_6%,transparent)]">
+                <label className="flex cursor-pointer gap-2.5 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_45%,transparent)] px-3 py-2.5 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_22%,var(--border))] has-[:checked]:border-[color-mix(in_srgb,var(--primary)_38%,var(--border))] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]">
                   <input
                     type="checkbox"
-                    className="mt-0.5 size-4 shrink-0 rounded border-[var(--border)]"
+                    className="mt-0.5 size-3.5 shrink-0 rounded border-[var(--border)]"
                     checked={c.tool_internet}
                     onChange={(e) => setAgentConfig({ ...c, tool_internet: e.target.checked })}
                   />
-                  <span>
-                    <span className="block text-sm font-medium text-[var(--text-primary)]">Web</span>
-                    <span className="text-muted mt-0.5 block text-[12px] leading-snug">Search public sources when relevant</span>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
+                      <FiGlobe className="size-3.5 shrink-0 opacity-80" aria-hidden />
+                      Web
+                    </span>
+                    <span className="text-muted mt-0.5 block text-[11px] leading-snug">Public sources when relevant</span>
                   </span>
                 </label>
               </div>
             </div>
+          </div>
 
-            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
-              <p className="text-secondary text-sm leading-relaxed">Guardrails</p>
-              <p className="text-muted mt-1 text-[13px] leading-snug">
-                Non‑negotiable limits: what the agent must refuse, escalate, or never do (compliance, safety).
-              </p>
+          <div className="flex gap-3 py-4">
+            <FiShield className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Guardrails</h3>
+                <p className="text-muted text-[12px] leading-snug">Must-refuse rules, compliance, and safety limits.</p>
+              </div>
               <textarea
-                className="brand-input mt-4 min-h-[100px] w-full rounded-xl px-4 py-3"
-                placeholder="Leave blank if you have nothing to add beyond the defaults"
+                className="brand-input min-h-[88px] w-full rounded-lg px-3 py-2 text-sm"
+                placeholder="Optional — defaults apply if empty"
                 value={c.guardrails_text}
                 onChange={(e) => setAgentConfig({ ...c, guardrails_text: e.target.value })}
               />
             </div>
+          </div>
 
-            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
-              <p className="text-secondary text-sm leading-relaxed">Guidelines</p>
-              <p className="text-muted mt-1 text-[13px] leading-snug">
-                Day‑to‑day expectations: tone, how to cite sources, and how you want it to work for your teams.
-              </p>
+          <div className="flex gap-3 py-4">
+            <FiBookOpen className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Guidelines</h3>
+                <p className="text-muted text-[12px] leading-snug">Tone, citations, and day-to-day expectations.</p>
+              </div>
               <textarea
-                className="brand-input mt-4 min-h-[100px] w-full rounded-xl px-4 py-3"
-                placeholder="Leave blank if the defaults are enough"
+                className="brand-input min-h-[88px] w-full rounded-lg px-3 py-2 text-sm"
+                placeholder="Optional — defaults apply if empty"
                 value={c.guidelines_text}
                 onChange={(e) => setAgentConfig({ ...c, guidelines_text: e.target.value })}
               />
             </div>
-
-            <details className="group rounded-2xl border border-dashed border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_25%,transparent)] px-5 py-4 sm:px-6 sm:py-5">
-              <summary className="cursor-pointer list-none text-sm font-medium text-[var(--text-primary)] marker:content-none [&::-webkit-details-marker]:hidden">
-                <span className="underline-offset-2 group-open:no-underline">Custom instructions</span>
-                <span className="text-muted ml-2 font-normal">— optional</span>
-              </summary>
-              <p className="text-muted mt-3 text-[13px] leading-relaxed">
-                Replace the built‑in role and behavior text when you need a fully tailored agent. Most teams rely on guardrails and guidelines above instead.
-              </p>
-              <textarea
-                className="brand-input mt-4 min-h-[120px] w-full rounded-xl px-4 py-3"
-                placeholder="Leave blank to use the default instructions"
-                value={c.base_system_prompt}
-                onChange={(e) => setAgentConfig({ ...c, base_system_prompt: e.target.value })}
-              />
-              <details className="mt-4 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_50%,transparent)] px-4 py-3">
-                <summary className="cursor-pointer text-[13px] font-medium text-[var(--text-secondary)]">Preview</summary>
-                <p className="text-muted mt-2 text-[12px]">Shortened view of the full agent context (what users get in chat).</p>
-                <pre className="text-muted mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_30%,transparent)] p-3 font-mono text-[11px] leading-relaxed">
-                  {effectivePreview}
-                </pre>
-              </details>
-            </details>
-
-            <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                onClick={() => void saveBehavior()}
-                className="brand-pill-active w-fit rounded-xl px-6 py-2.5 text-sm font-medium"
-              >
-                Save changes
-              </button>
-              <p className="text-muted text-[13px] leading-snug">Saved settings apply to all users in this workspace.</p>
-            </div>
           </div>
-        )}
-      </SectionCard>
-    </div>
+
+          <details className="group py-4 [&_summary::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+              <FiEdit3 className="size-4 shrink-0 text-[var(--primary)]" aria-hidden />
+              <span>
+                Custom instructions <span className="text-muted font-normal">(optional)</span>
+              </span>
+            </summary>
+            <p className="text-muted mt-2 pl-6 text-[12px] leading-snug">
+              Overrides the built-in system prompt. Most teams use guardrails and guidelines only.
+            </p>
+            <textarea
+              className="brand-input mt-3 min-h-[100px] w-full rounded-lg px-3 py-2 text-sm"
+              placeholder="Leave blank to use default instructions"
+              value={c.base_system_prompt}
+              onChange={(e) => setAgentConfig({ ...c, base_system_prompt: e.target.value })}
+            />
+            <details className="mt-3 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_35%,transparent)] px-3 py-2">
+              <summary className="cursor-pointer text-[12px] font-medium text-secondary">Effective prompt preview</summary>
+              <pre className="text-muted mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_50%,transparent)] p-2 font-mono text-[10px] leading-relaxed">
+                {effectivePreview}
+              </pre>
+            </details>
+          </details>
+
+          <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={() => void saveBehavior()}
+              className="brand-pill-active w-fit rounded-lg px-5 py-2 text-sm font-medium"
+            >
+              Save changes
+            </button>
+            <p className="text-muted text-[12px]">Applies to all users in this workspace.</p>
+          </div>
+        </div>
+      )}
+    </SectionCard>
   );
 }
 

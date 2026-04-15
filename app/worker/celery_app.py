@@ -15,7 +15,11 @@ celery_app.conf.update(
     accept_content=["json"],
     result_serializer="json",
     task_track_started=True,
-    result_expires=3600,
+    # Redis result TTL; DB stores terminal state for long-lived job history.
+    result_expires=86400 * 7,
     timezone="UTC",
     enable_utc=True,
 )
+
+# Register signal handlers (persist SUCCESS/FAILURE to `background_jobs`).
+import app.worker.job_signals  # noqa: E402, F401

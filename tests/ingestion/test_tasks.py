@@ -75,6 +75,8 @@ def test_ingest_documents_task_emits_stage_history(
         progress_callback=None,
         chunk_size: int | None = None,
         chunk_overlap: int | None = None,
+        runtime_config=None,
+        **_: object,
     ) -> IngestionResult:
         for stage in [
             IngestionStage(

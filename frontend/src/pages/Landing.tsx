@@ -1,127 +1,279 @@
-import { FiCpu, FiMessageSquare, FiSearch, FiUploadCloud } from "react-icons/fi";
+import {
+  FiArrowRight,
+  FiCpu,
+  FiDatabase,
+  FiGlobe,
+  FiLayers,
+  FiMessageSquare,
+  FiMic,
+  FiSearch,
+  FiUploadCloud,
+  FiZap,
+} from "react-icons/fi";
 
-import BrandWordmark from "../components/BrandWordmark";
+import { canAccessDocuments, useAuth } from "../auth";
 import { navigateTo } from "../utils";
 
-const features = [
+const pillars = [
   {
     icon: <FiUploadCloud className="size-5" strokeWidth={2.25} />,
-    title: "Ingest & chunk",
-    body: "Bring PDFs and text into a managed index with background jobs you can monitor.",
+    title: "Ingest & jobs",
+    body: "Upload documents, run ingestion in the background, and inspect task status in admin settings.",
   },
   {
     icon: <FiSearch className="size-5" strokeWidth={2.25} />,
     title: "Hybrid retrieval",
-    body: "Similarity, keyword, or hybrid search—scoped to what you uploaded.",
+    body: "Combine dense and sparse search over your indexed corpus—not a generic web search layer.",
   },
   {
     icon: <FiMessageSquare className="size-5" strokeWidth={2.25} />,
-    title: "Grounded chat",
-    body: "Ask questions and get answers tied to your corpus, not generic web fluff.",
+    title: "Source-grounded chat",
+    body: "Answers are driven by retrieved passages from your files, with visible context you can trace.",
   },
   {
     icon: <FiCpu className="size-5" strokeWidth={2.25} />,
-    title: "Workspace agent",
-    body: "Admins set organization, guardrails, and guidelines in one place—everyone gets the same agent behavior in chat.",
+    title: "Controlled agent",
+    body: "Admins set identity, guardrails, and which tools are available—consistent behavior for every user.",
   },
 ];
 
+const pipeline = [
+  { step: "01", label: "Upload", detail: "Files join your indexed corpus." },
+  { step: "02", label: "Index", detail: "Chunk, embed, and store vectors for search." },
+  { step: "03", label: "Retrieve", detail: "Hybrid search returns the most relevant passages." },
+  { step: "04", label: "Respond", detail: "The model answers using that context." },
+];
+
+const ctaAgentFeatures = [
+  { label: "Knowledge base", Icon: FiDatabase },
+  { label: "Web search", Icon: FiGlobe },
+  { label: "Multi-step reasoning", Icon: FiCpu },
+  { label: "Agentic tools", Icon: FiZap },
+  { label: "Persistent memory", Icon: FiLayers },
+] as const;
+
+/** One “screen” below the app header (approx.). */
+const landingScreen = "min-h-[calc(100dvh-5.5rem)] py-10 sm:py-14 lg:py-16";
+
 export default function Landing() {
+  const { user, authLoading } = useAuth();
+  const showDocs = user ? canAccessDocuments(user.role) : false;
+
   return (
-    <div className="flex flex-col gap-6 sm:gap-8">
-      <section className="brand-card brand-hero relative overflow-hidden rounded-2xl p-6 sm:rounded-3xl sm:p-10">
-        <div className="relative grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-12">
-          <div className="min-w-0">
-            <p className="heading-kicker text-[11px] font-semibold uppercase">Knowledge workspace</p>
-            <div className="mt-4">
-              <BrandWordmark />
-            </div>
-            <h1 className="brand-title mt-5 max-w-xl text-3xl font-semibold leading-[1.12] tracking-tight sm:text-4xl lg:text-[2.65rem]">
-              Grounded answers from <span className="text-[var(--data)]">your</span> documents.
-            </h1>
-            <p className="text-secondary mt-4 max-w-lg text-base leading-relaxed">
-              Upload sources, run ingestion, search the index, and chat with an assistant that cites what you own—not the open web by default.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigateTo("/login")}
-                className="brand-primary rounded-xl px-5 py-3 text-sm font-semibold shadow-[0_1px_0_0_color-mix(in_srgb,var(--primary)_40%,transparent)]"
-              >
-                Log in to workspace
-              </button>
-              <button
-                type="button"
-                onClick={() => navigateTo("/documents")}
-                className="brand-secondary rounded-xl px-5 py-3 text-sm font-medium"
-              >
-                Browse documents
-              </button>
-            </div>
-          </div>
+    <div className="landing-page w-full">
+      <div className="mx-auto w-full max-w-7xl px-1 sm:px-2">
+        <section id="landing-home" className={`${landingScreen} flex flex-col gap-8`}>
+            <div className="landing-hero-shell relative flex min-h-0 flex-1 flex-col overflow-visible py-2 sm:py-4">
+              <div className="landing-hero-grid pointer-events-none absolute inset-0 opacity-[0.18]" aria-hidden />
+              <div
+                className="pointer-events-none absolute -right-16 top-0 size-[20rem] rounded-full opacity-28 blur-3xl landing-hero-blob-a"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute -bottom-20 -left-10 size-[16rem] rounded-full opacity-22 blur-3xl landing-hero-blob-b"
+                aria-hidden
+              />
 
-          <div className="brand-elevated relative rounded-2xl border border-[color-mix(in_srgb,var(--border)_90%,transparent)] p-5 sm:p-6">
-            <div
-              className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full opacity-50 blur-2xl"
-              style={{ background: "radial-gradient(circle, rgba(59, 130, 246, 0.35), transparent 70%)" }}
-              aria-hidden
-            />
-            <p className="text-muted text-[11px] font-semibold uppercase tracking-wide">Quick start</p>
-            <ol className="mt-5 space-y-4 text-sm leading-relaxed">
-              <li className="flex gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-xs font-bold text-[var(--primary)]">
-                  1
-                </span>
-                <span className="text-secondary pt-0.5">Sign in and open the Documents workspace.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--data)_14%,transparent)] text-xs font-bold text-[var(--data)]">
-                  2
-                </span>
-                <span className="text-secondary pt-0.5">Upload files and run ingestion when you are ready.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--success)_14%,transparent)] text-xs font-bold text-[var(--success)]">
-                  3
-                </span>
-                <span className="text-secondary pt-0.5">Open Chat and ask with retrieval-backed context.</span>
-              </li>
-            </ol>
-            <button
-              type="button"
-              onClick={() => navigateTo("/chat")}
-              className="mt-6 w-full rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-medium transition-colors hover:bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)]"
-            >
-              Go to chat
-            </button>
+              <div className="relative my-auto grid w-full gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(340px,580px)] lg:items-center lg:gap-14 xl:gap-16">
+                <div className="min-w-0 max-w-xl lg:pt-1">
+                  <h1 className="brand-title text-[clamp(1.85rem,4.2vw,3rem)] font-semibold leading-[1.1] tracking-tight">
+                    Answers from <span className="text-[var(--data)]">your</span> documents, with retrieval you control.
+                  </h1>
+
+                  <p className="text-secondary mt-5 max-w-lg text-base leading-relaxed sm:text-[17px]">
+                    Grounded agentic RAG: your corpus, hybrid search, and guardrails, without defaulting to the open web.
+                  </p>
+
+                  <div className="mt-7 flex flex-wrap items-center gap-2.5">
+                    {!authLoading && user ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => navigateTo("/chat")}
+                          className="landing-cta-primary inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
+                        >
+                          Chat
+                          <FiArrowRight className="size-4" strokeWidth={2.25} />
+                        </button>
+                        {showDocs ? (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo("/documents")}
+                            className="brand-secondary rounded-xl px-5 py-3 text-sm font-medium"
+                          >
+                            Documents
+                          </button>
+                        ) : null}
+                      </>
+                    ) : !authLoading ? (
+                      <button
+                        type="button"
+                        onClick={() => navigateTo("/login")}
+                        className="landing-cta-primary group inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold"
+                      >
+                        Log in
+                        <FiArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2.25} />
+                      </button>
+                    ) : (
+                      <span className="text-muted text-sm">Loading…</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="min-w-0 w-full pr-2 sm:pr-3 lg:justify-self-end lg:pr-8">
+                  <ArtifactBrowserPreview />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-auto flex flex-col gap-6 border-t border-[var(--border)] pt-8">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex min-w-0 flex-1 flex-col gap-4">
+                  <p className="text-secondary max-w-2xl text-center text-base leading-relaxed lg:text-left">
+                    Hybrid retrieval, citations, and admin policies. Built for serious RAG, not generic chat.
+                  </p>
+                  <ul
+                    className="flex flex-wrap justify-center gap-2 lg:justify-start"
+                    aria-label="Agent capabilities"
+                  >
+                    {ctaAgentFeatures.map(({ label, Icon }) => (
+                      <li
+                        key={label}
+                        className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_85%,transparent)] px-3 py-2 text-xs font-medium text-secondary sm:text-[13px]"
+                      >
+                        <Icon className="size-3.5 shrink-0 text-[var(--primary)]" strokeWidth={2.25} aria-hidden />
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo(user ? "/chat" : "/login")}
+                  className="landing-cta-primary mx-auto w-fit shrink-0 rounded-xl px-7 py-3 text-sm font-semibold lg:mx-0"
+                >
+                  {user ? "Open chat" : "Get started"}
+                </button>
+              </div>
+            </div>
+        </section>
+
+        <section id="landing-features" className={`${landingScreen} flex flex-col justify-center`}>
+            <div className="landing-section-surface flex w-full flex-col p-8 sm:p-10 lg:p-12">
+              <div className="mb-8 max-w-3xl sm:mb-10 lg:mb-12">
+                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">What it does</h2>
+                <p className="text-secondary mt-3 max-w-2xl text-base leading-relaxed sm:text-lg">
+                  Ingestion, hybrid retrieval, and governed chat in one stack—without wiring separate stores and prompts.
+                </p>
+              </div>
+              <ul className="grid flex-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4 lg:gap-7">
+                {pillars.map((f) => (
+                  <li
+                    key={f.title}
+                    className="landing-pillar-card group flex min-h-[220px] flex-col p-6 sm:min-h-[240px] sm:p-7"
+                  >
+                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--primary)_16%,var(--surface))] text-[var(--primary)] ring-1 ring-[color-mix(in_srgb,var(--primary)_30%,transparent)]">
+                      <span className="[&>svg]:size-6">{f.icon}</span>
+                    </div>
+                    <h3 className="text-lg font-semibold tracking-tight">{f.title}</h3>
+                    <p className="text-secondary mt-3 flex-1 text-[15px] leading-relaxed sm:text-base">{f.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+        </section>
+
+        <section id="landing-flow" className={`${landingScreen} flex flex-col justify-center`}>
+            <div className="landing-section-surface w-full overflow-hidden p-8 sm:p-10 lg:p-12">
+              <div className="mb-8 max-w-2xl sm:mb-10">
+                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">Flow</h2>
+                <p className="text-secondary mt-3 text-base leading-relaxed sm:text-lg">
+                  From file to answer in four steps.
+                </p>
+              </div>
+              <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+                {pipeline.map((p, idx) => (
+                  <li key={p.step} className="relative">
+                    {idx < pipeline.length - 1 ? (
+                      <div
+                        className="absolute left-[calc(50%+2.25rem)] top-10 hidden h-px w-[calc(100%-1rem)] bg-[color-mix(in_srgb,var(--primary)_28%,var(--border))] lg:block"
+                        aria-hidden
+                      />
+                    ) : null}
+                    <div className="landing-stat relative flex min-h-[180px] flex-col justify-center rounded-2xl p-6 sm:min-h-[200px] sm:p-7">
+                      <span className="font-mono text-2xl font-bold tabular-nums text-[var(--primary)] sm:text-[1.65rem]">{p.step}</span>
+                      <p className="mt-3 text-lg font-semibold text-[var(--text-primary)]">{p.label}</p>
+                      <p className="text-secondary mt-2 text-[15px] leading-snug sm:text-base">{p.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+        </section>
+
+        <footer className="mt-12 border-t border-[var(--border)] pt-8 pb-6 text-center">
+          <p className="inline-flex flex-wrap items-center justify-center gap-x-2 text-sm font-bold tracking-tight">
+            <span className="text-muted font-normal tabular-nums">© 2026</span>
+            <span className="inline-flex items-baseline">
+              <span className="brand-mark-core">RAG</span>
+              <span className="brand-mark-accent">Wise</span>
+            </span>
+          </p>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function ArtifactBrowserPreview() {
+  return (
+    <div className="mx-auto w-full max-w-[600px] overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--primary)_28%,var(--border))] bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] shadow-[0_16px_48px_-12px_color-mix(in_srgb,var(--primary)_28%,transparent),0_8px_24px_-8px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_56px_-16px_color-mix(in_srgb,var(--primary)_35%,transparent),0_8px_28px_-10px_rgba(0,0,0,0.45)] lg:mx-0 lg:w-full">
+      <div className="flex items-center gap-2.5 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_88%,transparent)] px-4 py-3">
+        <div className="flex gap-2">
+          <span className="size-3 rounded-full bg-[color-mix(in_srgb,var(--error)_65%,#555)]" />
+          <span className="size-3 rounded-full bg-[color-mix(in_srgb,var(--warning)_70%,#555)]" />
+          <span className="size-3 rounded-full bg-[color-mix(in_srgb,var(--success)_55%,#555)]" />
+        </div>
+        <span className="text-muted truncate font-mono text-[11px] tracking-wide">app.example.com / chat</span>
+      </div>
+      <div className="space-y-4 p-4 sm:p-5">
+        <div className="rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_75%,transparent)] px-3 py-2.5">
+          <p className="text-muted text-[10px] font-semibold uppercase tracking-wider">Sources</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <span className="rounded-md border border-[color-mix(in_srgb,var(--data)_30%,var(--border))] bg-[color-mix(in_srgb,var(--data)_10%,transparent)] px-2 py-0.5 font-mono text-[10px] text-[var(--data)]">
+              policy.pdf · §4.2
+            </span>
+            <span className="rounded-md border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_55%,transparent)] px-2 py-0.5 font-mono text-[10px] text-secondary">
+              faq.md
+            </span>
           </div>
         </div>
-      </section>
-
-      <section>
-        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight">Built for serious RAG</h2>
-            <p className="text-secondary mt-1 text-sm">Everything in one place—from files to answers.</p>
+        <div className="space-y-2">
+          <div className="rounded-2xl rounded-tl-sm border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)] px-3.5 py-2.5 text-[13px] leading-relaxed text-secondary">
+            What are the eligibility rules for the premium tier this quarter?
+          </div>
+          <div className="rounded-2xl rounded-tr-sm border border-[color-mix(in_srgb,var(--primary)_18%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_6%,transparent)] px-3.5 py-2.5 text-[13px] leading-relaxed">
+            <span className="text-[var(--text-primary)]">
+              Based on <span className="font-medium text-[var(--data)]">policy.pdf</span>, premium eligibility requires…
+            </span>
           </div>
         </div>
-        <ul className="grid gap-3 sm:grid-cols-2 lg:gap-4">
-          {features.map((f) => (
-            <li
-              key={f.title}
-              className="brand-card group flex gap-4 rounded-2xl p-4 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_22%,transparent)] sm:p-5"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--elevated)_85%,transparent)] text-[var(--primary)] ring-1 ring-[color-mix(in_srgb,var(--border)_80%,transparent)] transition-colors group-hover:text-[var(--data)]">
-                {f.icon}
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold tracking-tight">{f.title}</h3>
-                <p className="text-secondary mt-1.5 text-sm leading-relaxed">{f.body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+        <div className="flex items-center gap-2 border-t border-[var(--border)] pt-3">
+          <div className="text-muted flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-dashed border-[var(--border)] px-3 py-2 font-mono text-[11px]">
+            <FiSearch className="size-3.5 shrink-0 opacity-60" strokeWidth={2.25} />
+            <span className="truncate">Message…</span>
+          </div>
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)] text-secondary"
+            aria-hidden
+          >
+            <FiMic className="size-4" strokeWidth={2.25} />
+          </span>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white">
+            <FiArrowRight className="size-4" strokeWidth={2.25} />
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

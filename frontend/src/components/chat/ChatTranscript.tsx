@@ -82,8 +82,8 @@ function InlineStatusPlaceholder({ status }: { status: string }) {
 
 function ChatMessagesSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8">
-      <div className="flex flex-col gap-12" aria-busy="true" aria-label="Loading messages">
+    <div className="mx-auto w-full max-w-3xl px-3 py-6 sm:px-4">
+      <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading messages">
         {[0.92, 0.78, 0.65].map((width, index) => (
           <div key={index} className="flex flex-col gap-4">
             <div className="h-4 w-24 animate-pulse rounded bg-[var(--border)]" />
@@ -137,7 +137,7 @@ export default function ChatTranscript({
 
   if (!chatMessages.length) {
     return (
-      <div className="chat-transcript flex min-h-0 flex-1 flex-col overflow-y-auto pb-40 sm:pb-56">
+      <div className="chat-transcript flex min-h-0 flex-1 flex-col overflow-y-auto pb-36 sm:pb-48">
         <p className="text-muted m-auto px-4 text-center text-sm">No messages yet. Ask anything to start!</p>
         <div ref={bottomAnchorRef} />
       </div>
@@ -145,10 +145,10 @@ export default function ChatTranscript({
   }
 
   return (
-    <div className="chat-transcript flex min-h-0 flex-1 flex-col overflow-y-auto pb-40 sm:pb-56">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-8">
+    <div className="chat-transcript flex min-h-0 flex-1 flex-col overflow-y-auto pb-36 sm:pb-48">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-3 py-5 sm:px-4">
         {chatStreaming && (
-          <div className="sticky top-0 z-10 mx-auto mb-4 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_92%,transparent)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] backdrop-blur-md transition-all">
+          <div className="sticky top-0 z-10 mx-auto mb-2 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_96%,transparent)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-secondary">
             {chatStatus}
           </div>
         )}
@@ -167,22 +167,22 @@ export default function ChatTranscript({
           return (
             <div
               key={`${message.role}-${index}`}
-              className="flex w-full flex-col gap-3"
+              className="flex w-full flex-col gap-1.5"
             >
-              {/* Speaker Header */}
-              <div className="flex items-center gap-2.5 px-0.5">
-                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
-                  isUser ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] text-[var(--primary)]" : "bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--accent)]"
-                }`}>
+              <div className="flex items-center gap-2 px-0.5">
+                <div
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] ${
+                    isUser
+                      ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-[var(--primary)]"
+                      : "bg-[color-mix(in_srgb,var(--text-muted)_20%,transparent)] text-secondary"
+                  }`}
+                >
                   {isUser ? <FiUser className="size-3.5" /> : <FiCpu className="size-3.5" />}
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] opacity-80">
-                  {isUser ? "You" : "RAGWise"}
-                </span>
+                <span className="text-xs font-semibold text-secondary">{isUser ? "You" : "Assistant"}</span>
               </div>
 
-              {/* Message Content */}
-              <div className="pl-8.5">
+              <div className="min-w-0 pl-0">
                 {message.role === "assistant" ? (
                   isStreamingPlaceholder ? (
                     <InlineStatusPlaceholder status={chatStatus} />
@@ -195,7 +195,7 @@ export default function ChatTranscript({
                     />
                   )
                 ) : (
-                  <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--text-primary)]">
+                  <div className="whitespace-pre-wrap rounded-2xl bg-[color-mix(in_srgb,var(--elevated)_88%,transparent)] px-3.5 py-2.5 text-[15px] leading-[1.65] text-[var(--text-primary)]">
                     {message.content}
                   </div>
                 )}

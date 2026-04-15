@@ -3,7 +3,7 @@ import { FiLock } from "react-icons/fi";
 
 import { defaultRouteForRole, useAuth } from "../auth";
 import BrandWordmark from "../components/BrandWordmark";
-import { API_BASE_URL, navigateTo, setAccessToken } from "../utils";
+import { API_BASE_URL, goHome, navigateTo, setAccessToken } from "../utils";
 
 export default function Login() {
   const { refreshUser } = useAuth();
@@ -40,8 +40,8 @@ export default function Login() {
     <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center px-2 py-6 sm:px-4">
       <div className="flex w-full max-w-md flex-col gap-8">
         <div className="flex flex-col items-center gap-3 text-center">
-          <BrandWordmark />
-          <p className="text-secondary text-sm">Sign in to your workspace</p>
+          <BrandWordmark onClick={goHome} />
+          <p className="text-secondary text-sm">Sign in to continue</p>
         </div>
         <form onSubmit={handleSubmit} className="brand-card flex w-full flex-col gap-4 rounded-[28px] p-8">
           <div className="flex items-center gap-2 text-secondary">

@@ -14,3 +14,12 @@ export function navigateTo(route: AppRoute): void {
     window.history.pushState({}, "", route);
     window.dispatchEvent(new PopStateEvent("popstate"));
 }
+
+/** Landing page: navigate to `/` or scroll to top if already there. */
+export function goHome(): void {
+    if (window.location.pathname === "/") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+        navigateTo("/");
+    }
+}

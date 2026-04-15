@@ -32,7 +32,7 @@ export default function ConfirmModal({
       />
       
       {/* Modal Content */}
-      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--background)] p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--background)] p-6 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex flex-col items-center text-center">
           <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${
             isDestructive ? "bg-[color-mix(in_srgb,var(--error)_15%,transparent)] text-[var(--error)]" : "bg-[color-mix(in_srgb,var(--primary)_15%,transparent)] text-[var(--primary)]"
