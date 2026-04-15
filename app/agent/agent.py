@@ -38,16 +38,18 @@ def build_agent(
     *,
     system_prompt: str | None = None,
     model_name: str | None = None,
+    tools: list | None = None,
 ):
     model = ChatOpenAI(
         model=model_name or OPENAI_MODEL,
         streaming=True,
     )
+    resolved_tools = tools if tools is not None else [knowledge_base_search, internet_search]
     return create_deep_agent(
         name="research_agent",
         model=model,
         system_prompt=system_prompt or agent_system_prompt,
-        tools=[knowledge_base_search, internet_search],
+        tools=resolved_tools,
     )
 
 
@@ -81,8 +83,9 @@ async def astream_agent_events(
     messages: list[dict[str, str]] | None = None,
     system_prompt: str | None = None,
     model_name: str | None = None,
+    tools: list | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    agent = build_agent(system_prompt=system_prompt, model_name=model_name)
+    agent = build_agent(system_prompt=system_prompt, model_name=model_name, tools=tools)
 
     if messages:
         filtered = [
@@ -148,8 +151,9 @@ def stream_agent_text(
     messages: list[dict[str, str]] | None = None,
     system_prompt: str | None = None,
     model_name: str | None = None,
+    tools: list | None = None,
 ) -> Iterator[str]:
-    agent = build_agent(system_prompt=system_prompt, model_name=model_name)
+    agent = build_agent(system_prompt=system_prompt, model_name=model_name, tools=tools)
     if messages:
         filtered = [
             {"role": m["role"], "content": m.get("content") or ""}

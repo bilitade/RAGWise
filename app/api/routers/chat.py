@@ -20,7 +20,7 @@ from app.api.schemas import (
 )
 from app.config import LANGCHAIN_PROJECT, LANGCHAIN_TRACING_V2
 from app.core.deps import require_active_user
-from app.db.models import AgentPersona, User
+from app.db.models import User
 from app.db.session import get_db
 from app.services.chat_service import (
     append_message,
@@ -34,6 +34,7 @@ from app.services.chat_service import (
     resolve_context_limit,
     rows_to_agent_messages,
 )
+from app.services.agent_settings import build_agent_tools_list, resolve_full_system_prompt
 from app.services.runtime_config import apply_openai_env_from_db, load_default_chat_model
 from app.services.usage_events import record_usage
 from app.services.usage_limits import enforce_monthly_limit, record_billable_request
@@ -108,21 +109,12 @@ def _title_from_user_text(text: str) -> str:
     return (t[:48] + "…") if len(t) > 48 else t
 
 
-def _resolve_system_prompt(db: Session, *, persona_id: UUID | None, thread_persona_id: UUID | None) -> str | None:
-    pid = persona_id or thread_persona_id
-    if not pid:
-        return None
-    persona = db.get(AgentPersona, pid)
-    if persona and persona.is_active:
-        return persona.system_prompt
-    return None
-
-
 async def _stream_chat(
     agent_messages: list[dict[str, str]],
     *,
-    system_prompt: str | None,
+    system_prompt: str,
     model_name: str,
+    tools: list,
     db: Session,
     user: User | None,
     persist_thread_id: UUID | None,
@@ -137,6 +129,7 @@ async def _stream_chat(
             messages=agent_messages,
             system_prompt=system_prompt,
             model_name=model_name,
+            tools=tools,
         ):
             if event.get("type") == "token":
                 chunk = event.get("text") or ""
@@ -281,8 +274,7 @@ def stream_chat(
     persist = user is not None
     persist_thread_id: UUID | None = None
     agent_messages: list[dict[str, str]]
-    system_prompt: str | None = None
-    persona_uuid = _parse_uuid(payload.persona_id)
+    agent_tools = build_agent_tools_list(db)
 
     if persist:
         ctx_mode = payload.context_window
@@ -308,7 +300,7 @@ def stream_chat(
                 db,
                 user_id=user.id,
                 title=_title_from_user_text(user_content),
-                persona_id=persona_uuid,
+                persona_id=None,
                 context_window=(payload.context_window or "min"),
             )
             db.flush()
@@ -337,11 +329,7 @@ def stream_chat(
         agent_messages = rows_to_agent_messages(windowed)
         persist_thread_id = tid
 
-        system_prompt = _resolve_system_prompt(
-            db,
-            persona_id=persona_uuid,
-            thread_persona_id=thread.persona_id,
-        )
+        system_prompt = resolve_full_system_prompt(db)
     else:
         turns = [t.model_dump() for t in payload.messages]
         turns = [{"role": t["role"], "content": t["content"]} for t in turns if t["role"] in ("user", "assistant")]
@@ -349,16 +337,14 @@ def stream_chat(
         agent_messages = ephemeral_messages_windowed(turns, limit=limit)
         if not agent_messages:
             raise HTTPException(status_code=400, detail="At least one user or assistant message is required")
-        if persona_uuid:
-            persona = db.get(AgentPersona, persona_uuid)
-            if persona and persona.is_active:
-                system_prompt = persona.system_prompt
+        system_prompt = resolve_full_system_prompt(db)
 
     return StreamingResponse(
         _stream_chat(
             agent_messages,
             system_prompt=system_prompt,
             model_name=model_name,
+            tools=agent_tools,
             db=db,
             user=user,
             persist_thread_id=persist_thread_id,

@@ -29,6 +29,11 @@ from app.db.session import get_db
 from app.ingestion.tasks import get_task_result
 from app.services.jobs_repo import list_jobs
 from app.services.langsmith_metrics import fetch_langsmith_project_metrics
+from app.services.agent_settings import (
+    load_agent_config_dict,
+    resolve_full_system_prompt,
+    save_agent_config_dict,
+)
 from app.services.openai_catalog import (
     MODEL_PROVIDER_OPTIONS,
     OPENAI_CHAT_MODEL_OPTIONS,
@@ -352,6 +357,62 @@ def delete_persona(
     db.delete(p)
     db.commit()
     return {"deleted": True}
+
+
+# --- Agent behavior (base prompt, tools, default persona) ---
+
+
+class AgentBehaviorOut(BaseModel):
+    """Single JSON document (`agent_config`) stored in DB; preview is computed."""
+
+    agent_config: dict[str, Any]
+    base_system_prompt_effective_preview: str
+
+
+class AgentBehaviorPatch(BaseModel):
+    """Merge into stored JSON. Omitted keys keep previous values."""
+
+    agent_config: dict[str, Any] | None = None
+
+
+def _agent_behavior_response(db: Session) -> AgentBehaviorOut:
+    full_no_persona = resolve_full_system_prompt(db)
+    preview = full_no_persona if len(full_no_persona) <= 650 else full_no_persona[:650] + "…"
+    return AgentBehaviorOut(
+        agent_config=load_agent_config_dict(db),
+        base_system_prompt_effective_preview=preview,
+    )
+
+
+@router.get("/agent-behavior", response_model=AgentBehaviorOut)
+def get_agent_behavior(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AgentBehaviorOut:
+    _ = admin
+    return _agent_behavior_response(db)
+
+
+@router.patch("/agent-behavior", response_model=AgentBehaviorOut)
+def patch_agent_behavior(
+    body: AgentBehaviorPatch,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AgentBehaviorOut:
+    _ = admin
+    if body.agent_config is None:
+        return _agent_behavior_response(db)
+    current = load_agent_config_dict(db)
+    incoming = body.agent_config
+    if not isinstance(incoming, dict):
+        raise HTTPException(status_code=400, detail="agent_config must be an object")
+    for k, v in incoming.items():
+        current[k] = v
+    for text_key in ("company_display_name", "base_system_prompt", "guardrails_text", "guidelines_text"):
+        if text_key in current and current[text_key] is not None:
+            current[text_key] = str(current[text_key]).strip()
+    save_agent_config_dict(db, current)
+    return _agent_behavior_response(db)
 
 
 # --- Jobs ---
