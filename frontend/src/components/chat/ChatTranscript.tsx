@@ -12,56 +12,58 @@ type StatusConfig = {
   pulse: boolean;
 };
 
-function getStatusConfig(status: string, streaming: boolean): StatusConfig {
+function getStatusConfig(status: string): StatusConfig {
   const normalized = status.toLowerCase();
 
   if (normalized.includes("generating") || normalized.includes("file") || normalized.includes("artifact")) {
     return { icon: <FiFileText />, label: "Generating File", color: "var(--accent)", pulse: true };
   }
   if (normalized.includes("knowledge") || normalized.includes("retriev")) {
-    return { icon: <FiDatabase />, label: "Retrieving KB", color: "var(--primary)", pulse: true };
+    return { icon: <FiDatabase />, label: "Retrieving Knowledge Base", color: "var(--primary)", pulse: true };
   }
   if (normalized.includes("web") || normalized.includes("internet") || normalized.includes("search")) {
-    return { icon: <FiGlobe />, label: "Web Search", color: "var(--data)", pulse: true };
+    return { icon: <FiGlobe />, label: "Searching Web", color: "var(--data)", pulse: true };
   }
-  if (normalized.includes("reasoning") || normalized.includes("result")) {
+  if (normalized.includes("reasoning") || normalized.includes("result") || normalized.includes("thinking")) {
     return { icon: <FiCpu />, label: "Reasoning", color: "var(--primary)", pulse: true };
   }
-  if (normalized.includes("draft") || normalized.includes("writing")) {
-    return { icon: <FiEdit2 />, label: "Drafting", color: "var(--success)", pulse: true };
+  if (normalized.includes("draft") || normalized.includes("writing") || normalized.includes("answer")) {
+    return { icon: <FiEdit2 />, label: "Drafting Answer", color: "var(--success)", pulse: true };
   }
   if (normalized.includes("finaliz")) {
     return { icon: <FiCheckCircle />, label: "Finalizing", color: "var(--success)", pulse: false };
   }
-  if (normalized.includes("think")) {
-    return { icon: <FiCpu />, label: "Thinking", color: "var(--primary)", pulse: true };
-  }
   if (normalized === "failed") {
     return { icon: <FiXCircle />, label: "Failed", color: "var(--error)", pulse: false };
   }
-  if (streaming) {
-    return { icon: <FiClock />, label: "Working", color: "var(--accent)", pulse: true };
-  }
-  return { icon: <FiCheckCircle />, label: "Ready", color: "var(--success)", pulse: false };
+
+  // Fallback to "Thinking" instead of "Working"
+  return { icon: <FiCpu />, label: "Thinking", color: "var(--primary)", pulse: true };
 }
 
 function InlineStatusPlaceholder({ status }: { status: string }) {
-  const config = getStatusConfig(status, true);
+  const config = getStatusConfig(status);
 
   return (
-    <div className="flex flex-col gap-2 py-0.5">
-      <div className="flex items-center gap-2">
-        <span
-          className="agent-status-dot shrink-0"
-          style={{
+    <div className="flex items-center gap-3 py-1.5 transition-all duration-500 ease-in-out">
+      <div className="premium-status-ring" style={{ color: config.color }}>
+        <div 
+          className="h-1.5 w-1.5 rounded-full" 
+          style={{ 
             background: config.color,
-            animation: config.pulse ? "status-pulse 1.4s ease-in-out infinite" : "none",
+            animation: config.pulse ? "status-glow 1.5s ease-in-out infinite" : "none" 
           }}
         />
-        <span className="shrink-0 text-sm" style={{ color: config.color }}>
+      </div>
+      <div className="flex items-center gap-2 overflow-hidden">
+        <span className="shrink-0 text-sm opacity-80" style={{ color: config.color }}>
           {config.icon}
         </span>
-        <span className="text-xs font-semibold" style={{ color: config.color }}>
+        <span 
+          key={config.label}
+          className="status-label-animated text-[11px] font-black uppercase tracking-[0.08em]"
+          style={{ color: config.color }}
+        >
           {config.label}
         </span>
       </div>
@@ -145,14 +147,15 @@ export default function ChatTranscript({
           chatStreaming &&
           index === chatMessages.length - 1 &&
           !message.content &&
-          !(message.citations && message.citations.length > 0);
+          !(message.citations && message.citations.length > 0) &&
+          !message.reasoning;
         const assistantMessage = buildAssistantMessage(message, conversationTitle);
 
         return (
           <div
             key={`${message.role}-${index}`}
-            className={`chat-bubble max-w-[min(100%,42rem)] rounded-2xl px-3 py-2.5 text-[13px] leading-snug sm:max-w-[min(92%,42rem)] ${
-              message.role === "user" ? "ml-auto brand-primary" : "mr-auto brand-card"
+            className={`chat-bubble rounded-2xl text-[14px] leading-snug ${
+              message.role === "user" ? "ml-auto w-[85%] sm:w-[60%] brand-primary px-3 py-2.5 sm:px-4 sm:py-3" : "w-full bg-transparent px-0 py-2 sm:py-4"
             }`}
           >
             {message.role === "assistant" ? (

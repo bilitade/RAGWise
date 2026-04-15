@@ -25,7 +25,7 @@ export default function ChatFileBlock({
     spec.extension === "json" ? normalizeJsonContent(content) : content;
 
   return (
-    <div className="chat-file-card">
+    <div className="chat-file-card mx-auto w-full max-w-[90%]">
       <div className="chat-file-toolbar">
         <div className="chat-file-meta">
           <div className="chat-file-icon">

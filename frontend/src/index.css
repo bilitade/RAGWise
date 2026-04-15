@@ -19,6 +19,7 @@
   color: var(--text-primary);
   background: var(--background);
   font-family: "Satoshi", "Inter", "Segoe UI", sans-serif;
+  color-scheme: dark;
 }
 
 :root[data-theme="light"] {
@@ -29,6 +30,7 @@
   --text-secondary: #334155;
   --text-muted: #64748b;
   --border: rgba(15, 23, 42, 0.08);
+  color-scheme: light;
 }
 
 html {
@@ -246,15 +248,15 @@ textarea {
 .chat-markdown blockquote,
 .chat-markdown table,
 .chat-markdown pre {
-  margin: 0.35rem 0;
+  margin: 0 0 0.45rem;
 }
 
 .chat-markdown h1,
 .chat-markdown h2,
 .chat-markdown h3,
 .chat-markdown h4 {
-  margin: 0.6rem 0 0.3rem;
-  line-height: 1.25;
+  margin: 0.8rem 0 0.3rem;
+  line-height: 1.2;
   letter-spacing: -0.015em;
 }
 
@@ -754,5 +756,82 @@ textarea {
 .chat-send-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 25%, transparent);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Firefox support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 25%, transparent) transparent;
+}
+
+/* ── Status Animations ────────────────────────────────────────────────────── */
+@keyframes status-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+@keyframes status-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes label-slide {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.premium-status-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.premium-status-ring::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  opacity: 0.15;
+}
+
+.premium-status-ring::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  border-top-color: currentColor;
+  animation: status-spin 1s linear infinite;
+}
+
+.status-label-animated {
+  animation: label-slide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

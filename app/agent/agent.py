@@ -14,7 +14,11 @@ from langchain_openai import ChatOpenAI
 
 from app.agent.citations import citations_from_tool_output
 from app.agent.prompts import agent_system_prompt
-from app.agent.tools import make_internet_search_tool, make_knowledge_base_search_tool
+from app.agent.tools import (
+    make_internet_search_tool,
+    make_knowledge_base_search_tool,
+    make_multi_source_research_tool,
+)
 from app.config import OPENAI_MODEL
 from app.services.runtime_config import RuntimeModelConfig
 
@@ -65,6 +69,7 @@ def build_agent(
     resolved_tools = tools if tools is not None else [
         make_knowledge_base_search_tool(runtime_config),
         make_internet_search_tool(),
+        make_multi_source_research_tool(runtime_config),
     ]
     return create_deep_agent(
         name="research_agent",

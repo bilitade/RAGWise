@@ -48,7 +48,7 @@ export default function AssistantMessageBody({
   return (
     <div className="chat-markdown">
       {reasoning ? (
-        <div className="mb-4 overflow-hidden rounded-xl border border-[color-mix(in_srgb,var(--primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]">
+        <div className="mb-4 overflow-hidden rounded-r-xl border-l-4 border-l-[var(--primary)] border-y border-r border-[color-mix(in_srgb,var(--border)_80%,transparent)] bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]">
           <button
             type="button"
             onClick={() => setReasoningExpanded(!reasoningExpanded)}
@@ -69,7 +69,7 @@ export default function AssistantMessageBody({
       ) : null}
 
       {showSuggestedDocument ? (
-        <div className="chat-artifact-suggestion brand-elevated mb-4 flex items-center justify-between gap-4 rounded-2xl p-3.5">
+        <div className="chat-artifact-suggestion brand-elevated mx-auto mb-6 flex max-w-[90%] items-center justify-between gap-4 rounded-2xl p-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="chat-artifact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white">
               <FiFileText className="size-5" strokeWidth={2.25} />

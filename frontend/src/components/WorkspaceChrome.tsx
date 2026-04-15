@@ -195,7 +195,7 @@ export function WorkspaceMainColumn({
 }) {
   return (
     <div
-      className={`flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_40%,transparent)] px-4 pb-6 pt-4 shadow-[0_1px_0_0_color-mix(in_srgb,var(--border)_80%,transparent)] lg:min-h-0 ${
+      className={`flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-6 pt-4 lg:min-h-0 ${
         noOuterScroll ? "overflow-hidden" : "overflow-y-auto"
       } ${className ?? ""}`}
     >
