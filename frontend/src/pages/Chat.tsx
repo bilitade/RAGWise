@@ -15,6 +15,7 @@ import { SidebarToggleButton, WorkspaceMainColumn } from "../components/Workspac
 import ChatComposer from "../components/chat/ChatComposer";
 import ChatSidebar from "../components/chat/ChatSidebar";
 import ChatTranscript from "../components/chat/ChatTranscript";
+import ConfirmModal from "../components/ConfirmModal";
 
 async function fetchThreadMessages(threadId: string): Promise<ChatMessage[]> {
   const res = await fetch(`${API_BASE_URL}/api/chat/threads/${threadId}/messages`, {
@@ -44,6 +45,8 @@ export default function Chat() {
   const [chatSidebarOpen, setChatSidebarOpen] = useState(() => readSidebarPreference(CHAT_SIDEBAR_KEY));
   const recognitionRef = useRef<any>(null);
   const bottomAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [threadIdToDelete, setThreadIdToDelete] = useState<string | null>(null);
   const prevThreadIdRef = useRef<string | null>(null);
   const conversationsRef = useRef(conversations);
   useEffect(() => {
@@ -263,9 +266,19 @@ export default function Chat() {
     }
   }
 
-  async function deleteConversation(id: string, e: React.MouseEvent) {
+  function deleteConversation(id: string, e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
+    setThreadIdToDelete(id);
+    setDeleteModalOpen(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (!threadIdToDelete) return;
+    const id = threadIdToDelete;
+    setDeleteModalOpen(false);
+    setThreadIdToDelete(null);
+
     threadMessagesFetchId.current += 1;
     if (getAccessToken() && isServerChatThreadId(id)) {
       try {
@@ -555,7 +568,7 @@ export default function Chat() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+          <div className="flex min-h-0 flex-1 flex-col">
             <ChatTranscript
               threadsLoaded={threadsLoaded}
               messagesLoading={messagesLoading}
@@ -591,6 +604,15 @@ export default function Chat() {
           </div>
         </div>
       </WorkspaceMainColumn>
+
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        title="Delete Conversation"
+        message={`Are you sure you want to delete "${conversations.find(c => c.id === threadIdToDelete)?.title || "this conversation"}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={() => setDeleteModalOpen(false)}
+      />
     </div>
   );
 }

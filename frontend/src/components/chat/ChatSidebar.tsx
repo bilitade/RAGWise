@@ -62,12 +62,9 @@ export default function ChatSidebar({
                     <button
                       type="button"
                       onClick={() => onSelectConversation(conversation.id)}
-                      className="min-w-0 flex-1 px-3 py-2.5 text-left"
+                      className="min-w-0 flex-1 px-3 py-3 text-left"
                     >
-                      <div className="truncate text-sm font-semibold">{conversation.title}</div>
-                      <div className="text-muted mt-1 line-clamp-2 text-[11px] leading-snug">
-                        {conversation.messages.at(-1)?.content || "No messages yet"}
-                      </div>
+                      <div className="truncate text-sm font-medium">{conversation.title}</div>
                     </button>
                     <button
                       type="button"

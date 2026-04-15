@@ -69,7 +69,7 @@ export default function AssistantMessageBody({
       ) : null}
 
       {showSuggestedDocument ? (
-        <div className="chat-artifact-suggestion brand-elevated mx-auto mb-6 flex max-w-[90%] items-center justify-between gap-4 rounded-2xl p-4">
+        <div className="chat-artifact-suggestion brand-elevated mx-auto mb-6 flex w-full items-center justify-between gap-4 rounded-2xl p-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="chat-artifact-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-white">
               <FiFileText className="size-5" strokeWidth={2.25} />

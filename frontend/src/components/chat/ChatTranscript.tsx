@@ -1,5 +1,15 @@
 import type { RefObject } from "react";
-import { FiCheckCircle, FiClock, FiCpu, FiDatabase, FiEdit2, FiFileText, FiGlobe, FiXCircle } from "react-icons/fi";
+import { 
+  FiCheckCircle, 
+  FiClock, 
+  FiCpu, 
+  FiDatabase, 
+  FiEdit2, 
+  FiFileText, 
+  FiGlobe, 
+  FiUser,
+  FiXCircle 
+} from "react-icons/fi";
 
 import AssistantMessageBody from "../AssistantMessageBody";
 import type { ChatCitation, ChatMessage } from "../../types";
@@ -37,7 +47,6 @@ function getStatusConfig(status: string): StatusConfig {
     return { icon: <FiXCircle />, label: "Failed", color: "var(--error)", pulse: false };
   }
 
-  // Fallback to "Thinking" instead of "Working"
   return { icon: <FiCpu />, label: "Thinking", color: "var(--primary)", pulse: true };
 }
 
@@ -73,18 +82,18 @@ function InlineStatusPlaceholder({ status }: { status: string }) {
 
 function ChatMessagesSkeleton() {
   return (
-    <div className="flex min-h-[12rem] flex-col gap-3 py-2" aria-busy="true" aria-label="Loading messages">
-      <div className="text-muted flex items-center gap-2 text-xs">
-        <FiClock className="size-3.5 animate-pulse" strokeWidth={2.25} />
-        <span>Loading conversation…</span>
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+      <div className="flex flex-col gap-12" aria-busy="true" aria-label="Loading messages">
+        {[0.92, 0.78, 0.65].map((width, index) => (
+          <div key={index} className="flex flex-col gap-4">
+            <div className="h-4 w-24 animate-pulse rounded bg-[var(--border)]" />
+            <div
+              className="h-20 animate-pulse rounded-xl bg-[color-mix(in_srgb,var(--border)_55%,var(--elevated)_45%)]"
+              style={{ width: `${width * 100}%` }}
+            />
+          </div>
+        ))}
       </div>
-      {[0.92, 0.78, 0.65].map((width, index) => (
-        <div
-          key={index}
-          className="h-14 max-w-[min(100%,85%)] animate-pulse rounded-2xl bg-[color-mix(in_srgb,var(--border)_55%,var(--elevated)_45%)]"
-          style={{ width: `${width * 100}%` }}
-        />
-      ))}
     </div>
   );
 }
@@ -128,54 +137,74 @@ export default function ChatTranscript({
 
   if (!chatMessages.length) {
     return (
-      <div className="chat-transcript flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 sm:gap-2.5 sm:pr-1">
-        <p className="text-muted m-auto px-2 text-center text-sm">No messages yet.</p>
+      <div className="chat-transcript flex min-h-0 flex-1 flex-col overflow-y-auto pb-40 sm:pb-56">
+        <p className="text-muted m-auto px-4 text-center text-sm">No messages yet. Ask anything to start!</p>
         <div ref={bottomAnchorRef} />
       </div>
     );
   }
 
   return (
-    <div className="chat-transcript flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 sm:gap-2.5 sm:pr-1">
-      {chatStreaming ? (
-        <div className="sticky top-0 z-10 mr-auto mb-2 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_88%,transparent)] px-3 py-1 text-[11px] font-semibold tracking-wide text-[var(--text-secondary)] backdrop-blur">
-          {chatStatus}
-        </div>
-      ) : null}
-      {chatMessages.map((message, index) => {
-        const isStreamingPlaceholder =
-          chatStreaming &&
-          index === chatMessages.length - 1 &&
-          !message.content &&
-          !(message.citations && message.citations.length > 0) &&
-          !message.reasoning;
-        const assistantMessage = buildAssistantMessage(message, conversationTitle);
-
-        return (
-          <div
-            key={`${message.role}-${index}`}
-            className={`chat-bubble rounded-2xl text-[14px] leading-snug ${
-              message.role === "user" ? "ml-auto w-[85%] sm:w-[60%] brand-primary px-3 py-2.5 sm:px-4 sm:py-3" : "w-full bg-transparent px-0 py-2 sm:py-4"
-            }`}
-          >
-            {message.role === "assistant" ? (
-              isStreamingPlaceholder ? (
-                <InlineStatusPlaceholder status={chatStatus} />
-              ) : (
-                <AssistantMessageBody
-                  content={assistantMessage.body}
-                  citations={assistantMessage.citations}
-                  reasoning={message.reasoning}
-                  conversationTitle={conversationTitle}
-                />
-              )
-            ) : (
-              <div className="whitespace-pre-wrap">{message.content}</div>
-            )}
+    <div className="chat-transcript flex min-h-0 flex-1 flex-col overflow-y-auto pb-40 sm:pb-56">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-8">
+        {chatStreaming && (
+          <div className="sticky top-0 z-10 mx-auto mb-4 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_92%,transparent)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] backdrop-blur-md transition-all">
+            {chatStatus}
           </div>
-        );
-      })}
-      <div ref={bottomAnchorRef} />
+        )}
+
+        {chatMessages.map((message, index) => {
+          const isStreamingPlaceholder =
+            chatStreaming &&
+            index === chatMessages.length - 1 &&
+            !message.content &&
+            !(message.citations && message.citations.length > 0) &&
+            !message.reasoning;
+          
+          const assistantMessage = buildAssistantMessage(message, conversationTitle);
+          const isUser = message.role === "user";
+
+          return (
+            <div
+              key={`${message.role}-${index}`}
+              className="flex w-full flex-col gap-3"
+            >
+              {/* Speaker Header */}
+              <div className="flex items-center gap-2.5 px-0.5">
+                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                  isUser ? "bg-[color-mix(in_srgb,var(--primary)_20%,transparent)] text-[var(--primary)]" : "bg-[color-mix(in_srgb,var(--accent)_20%,transparent)] text-[var(--accent)]"
+                }`}>
+                  {isUser ? <FiUser className="size-3.5" /> : <FiCpu className="size-3.5" />}
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)] opacity-80">
+                  {isUser ? "You" : "RAGWise"}
+                </span>
+              </div>
+
+              {/* Message Content */}
+              <div className="pl-8.5">
+                {message.role === "assistant" ? (
+                  isStreamingPlaceholder ? (
+                    <InlineStatusPlaceholder status={chatStatus} />
+                  ) : (
+                    <AssistantMessageBody
+                      content={assistantMessage.body}
+                      citations={assistantMessage.citations}
+                      reasoning={message.reasoning}
+                      conversationTitle={conversationTitle}
+                    />
+                  )
+                ) : (
+                  <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-[var(--text-primary)]">
+                    {message.content}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomAnchorRef} />
+      </div>
     </div>
   );
 }
