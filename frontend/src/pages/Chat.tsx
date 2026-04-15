@@ -202,8 +202,6 @@ export default function Chat() {
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatStatus, setChatStatus] = useState("Ready");
   const [chatActivity, setChatActivity] = useState<string[]>([]);
-  const [personas, setPersonas] = useState<{ id: string; name: string; description: string }[]>([]);
-  const [personaId, setPersonaId] = useState("");
   const [contextWindow, setContextWindow] = useState<ChatContextWindow>("min");
   const [contextModeMenuOpen, setContextModeMenuOpen] = useState(false);
   const contextModeRef = useRef<HTMLDivElement | null>(null);
@@ -261,13 +259,6 @@ export default function Chat() {
     if (prev !== null && prev !== activeConversationId) return;
     bottomAnchorRef.current?.scrollIntoView({ block: "end" });
   }, [chatMessages, chatStreaming, activeConversationId]);
-
-  useEffect(() => {
-    void fetch(`${API_BASE_URL}/api/personas`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => setPersonas(Array.isArray(data) ? data : []))
-      .catch(() => setPersonas([]));
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -491,12 +482,10 @@ export default function Chat() {
           messages: [{ role: "user" as const, content: trimmed }],
           thread_id: activeConversation.id,
           context_window: contextWindow,
-          persona_id: personaId || null,
         }
       : {
           messages: nextMessages,
           context_window: contextWindow,
-          persona_id: personaId || null,
         };
 
     try {
@@ -765,25 +754,6 @@ export default function Chat() {
             </div>
           </div>
         </header>
-
-        {personas.length ? (
-          <div className="mb-4 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] px-3 py-3 sm:px-4 sm:py-3.5">
-            <label className="text-muted mb-2 block text-[11px] font-semibold uppercase tracking-wide">Persona</label>
-            <select
-              className="brand-input w-full rounded-lg px-3 py-2.5 text-sm"
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
-            >
-              <option value="">Default</option>
-              {personas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.description ? ` — ${p.description.slice(0, 40)}${p.description.length > 40 ? "…" : ""}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[color-mix(in_srgb,var(--border)_70%,transparent)] bg-[color-mix(in_srgb,var(--elevated)_50%,transparent)]">
           <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">

@@ -55,7 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         id: "agents",
-        title: "Agent personas",
+        title: "Agent",
         icon: <FiCpu className="size-[1.1rem]" strokeWidth={2.25} />,
       },
     ],
@@ -225,11 +225,20 @@ export default function SettingsPage({
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="brand-card rounded-2xl p-4 sm:p-6">
       <div className="border-b border-[var(--border)] pb-3 sm:pb-4">
         <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+        {description ? <p className="text-secondary mt-2 max-w-2xl text-sm leading-relaxed">{description}</p> : null}
       </div>
       <div className="pt-4 sm:pt-5">{children}</div>
     </section>
@@ -627,130 +636,178 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
   );
 }
 
-type AgentRow = {
-  id: string;
-  name: string;
-  description: string;
-  system_prompt: string;
-  is_active: boolean;
-  sort_order: number;
+/** Mirrors `default_agent_config()` on the server. */
+type AgentConfig = {
+  version: number;
+  company_display_name: string;
+  guardrails_text: string;
+  guidelines_text: string;
+  base_system_prompt: string;
+  tool_knowledge_base: boolean;
+  tool_internet: boolean;
+};
+
+type AgentBehaviorPayload = {
+  agent_config: AgentConfig;
+  base_system_prompt_effective_preview: string;
 };
 
 function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | null) => void }) {
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [behaviorReady, setBehaviorReady] = useState(false);
+  const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [effectivePreview, setEffectivePreview] = useState("");
 
-  async function load() {
+  async function loadBehavior() {
     try {
-      const list = await fetchJson<AgentRow[]>(`${API_BASE_URL}/api/settings/agents`);
-      setAgents(list);
+      const b = await fetchJson<AgentBehaviorPayload>(`${API_BASE_URL}/api/settings/agent-behavior`);
+      setAgentConfig(b.agent_config);
+      setEffectivePreview(b.base_system_prompt_effective_preview);
+      setBehaviorReady(true);
     } catch (err) {
-      onNotify(null, err instanceof Error ? err.message : "Failed to load agents");
+      onNotify(null, err instanceof Error ? err.message : "Failed to load agent settings");
     }
   }
 
   useEffect(() => {
-    void load();
+    void loadBehavior();
   }, []);
 
-  async function create() {
+  async function saveBehavior() {
+    if (!agentConfig) return;
     onNotify(null, null);
     try {
-      await fetchJson(`${API_BASE_URL}/api/settings/agents`, {
-        method: "POST",
+      await fetchJson(`${API_BASE_URL}/api/settings/agent-behavior`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, system_prompt: prompt }),
+        body: JSON.stringify({ agent_config: agentConfig }),
       });
-      setName("");
-      setDescription("");
-      setPrompt("");
-      onNotify("Persona created.", null);
-      await load();
+      onNotify("Saved.", null);
+      await loadBehavior();
     } catch (err) {
-      onNotify(null, err instanceof Error ? err.message : "Create failed");
+      onNotify(null, err instanceof Error ? err.message : "Save failed");
     }
   }
 
-  async function remove(id: string) {
-    if (!confirm("Delete this persona? Chat users will lose this option.")) return;
-    try {
-      await fetchJson(`${API_BASE_URL}/api/settings/agents/${id}`, { method: "DELETE" });
-      onNotify("Persona removed.", null);
-      await load();
-    } catch (err) {
-      onNotify(null, err instanceof Error ? err.message : "Delete failed");
-    }
-  }
+  const c = agentConfig;
 
   return (
     <div className="space-y-8">
-      <SectionCard title="Create a persona">
-        <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-secondary font-medium">Display name</span>
-            <input
-              className="brand-input rounded-2xl px-4 py-2.5"
-              placeholder="e.g. Policy analyst"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-secondary font-medium">Description</span>
-            <input
-              className="brand-input rounded-xl px-4 py-2.5"
-              placeholder="One line for users"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-secondary font-medium">System prompt</span>
-            <textarea
-              className="brand-input min-h-[180px] rounded-xl px-4 py-3"
-              placeholder="You are…"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => void create()}
-            className="brand-pill-active w-fit rounded-2xl px-6 py-2.5 text-sm font-medium"
-          >
-            Save persona
-          </button>
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Saved personas">
-        {agents.length === 0 ? (
-          <p className="text-secondary text-sm">No personas yet. Create one above.</p>
+      <SectionCard
+        title="Agent"
+        description="Configure your organization’s agent in one place: identity, guardrails, guidelines, and optional custom instructions. How the agent selects and uses tools follows the product defaults and is not edited here. Everyone in the workspace uses these settings in chat."
+      >
+        {!behaviorReady || !c ? (
+          <p className="text-secondary text-sm">Loading…</p>
         ) : (
-          <ul className="flex flex-col gap-4">
-            {agents.map((a) => (
-              <li key={a.id} className="brand-elevated rounded-2xl p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold">{a.name}</h3>
-                    <p className="text-secondary mt-1 text-sm">{a.description || "No description"}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-xl border border-[color-mix(in_srgb,var(--error)_35%,transparent)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[color-mix(in_srgb,var(--error)_10%,transparent)]"
-                    onClick={() => void remove(a.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-                <pre className="text-muted mt-3 max-h-36 overflow-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_50%,transparent)] p-3 text-xs leading-relaxed">
-                  {a.system_prompt.length > 500 ? `${a.system_prompt.slice(0, 500)}…` : a.system_prompt}
+          <div className="mx-auto max-w-2xl space-y-8">
+            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
+              <p className="text-secondary text-sm leading-relaxed">Identity</p>
+              <label className="mt-4 block">
+                <span className="text-[13px] font-medium text-[var(--text-primary)]">Organization name</span>
+                <span className="text-muted mt-1 block text-[13px] leading-snug">
+                  Optional. Helps responses stay aligned with your brand.
+                </span>
+                <input
+                  className="brand-input mt-3 w-full rounded-xl px-4 py-3"
+                  placeholder="e.g. Your company name"
+                  value={c.company_display_name}
+                  onChange={(e) => setAgentConfig({ ...c, company_display_name: e.target.value })}
+                  autoComplete="organization"
+                />
+              </label>
+            </div>
+
+            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
+              <p className="text-secondary text-sm leading-relaxed">Capabilities</p>
+              <p className="text-muted mt-1 text-[13px] leading-snug">Choose what the agent is allowed to use when answering.</p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <label className="flex cursor-pointer gap-3 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_35%,transparent)] p-4 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_25%,var(--border))] has-[:checked]:border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_6%,transparent)]">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 shrink-0 rounded border-[var(--border)]"
+                    checked={c.tool_knowledge_base}
+                    onChange={(e) => setAgentConfig({ ...c, tool_knowledge_base: e.target.checked })}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-[var(--text-primary)]">Internal documents</span>
+                    <span className="text-muted mt-0.5 block text-[12px] leading-snug">Search your indexed knowledge base</span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer gap-3 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_35%,transparent)] p-4 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_25%,var(--border))] has-[:checked]:border-[color-mix(in_srgb,var(--primary)_40%,var(--border))] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_6%,transparent)]">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 shrink-0 rounded border-[var(--border)]"
+                    checked={c.tool_internet}
+                    onChange={(e) => setAgentConfig({ ...c, tool_internet: e.target.checked })}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-[var(--text-primary)]">Web</span>
+                    <span className="text-muted mt-0.5 block text-[12px] leading-snug">Search public sources when relevant</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
+              <p className="text-secondary text-sm leading-relaxed">Guardrails</p>
+              <p className="text-muted mt-1 text-[13px] leading-snug">
+                Non‑negotiable limits: what the agent must refuse, escalate, or never do (compliance, safety).
+              </p>
+              <textarea
+                className="brand-input mt-4 min-h-[100px] w-full rounded-xl px-4 py-3"
+                placeholder="Leave blank if you have nothing to add beyond the defaults"
+                value={c.guardrails_text}
+                onChange={(e) => setAgentConfig({ ...c, guardrails_text: e.target.value })}
+              />
+            </div>
+
+            <div className="rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] p-5 sm:p-6">
+              <p className="text-secondary text-sm leading-relaxed">Guidelines</p>
+              <p className="text-muted mt-1 text-[13px] leading-snug">
+                Day‑to‑day expectations: tone, how to cite sources, and how you want it to work for your teams.
+              </p>
+              <textarea
+                className="brand-input mt-4 min-h-[100px] w-full rounded-xl px-4 py-3"
+                placeholder="Leave blank if the defaults are enough"
+                value={c.guidelines_text}
+                onChange={(e) => setAgentConfig({ ...c, guidelines_text: e.target.value })}
+              />
+            </div>
+
+            <details className="group rounded-2xl border border-dashed border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_25%,transparent)] px-5 py-4 sm:px-6 sm:py-5">
+              <summary className="cursor-pointer list-none text-sm font-medium text-[var(--text-primary)] marker:content-none [&::-webkit-details-marker]:hidden">
+                <span className="underline-offset-2 group-open:no-underline">Custom instructions</span>
+                <span className="text-muted ml-2 font-normal">— optional</span>
+              </summary>
+              <p className="text-muted mt-3 text-[13px] leading-relaxed">
+                Replace the built‑in role and behavior text when you need a fully tailored agent. Most teams rely on guardrails and guidelines above instead.
+              </p>
+              <textarea
+                className="brand-input mt-4 min-h-[120px] w-full rounded-xl px-4 py-3"
+                placeholder="Leave blank to use the default instructions"
+                value={c.base_system_prompt}
+                onChange={(e) => setAgentConfig({ ...c, base_system_prompt: e.target.value })}
+              />
+              <details className="mt-4 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_50%,transparent)] px-4 py-3">
+                <summary className="cursor-pointer text-[13px] font-medium text-[var(--text-secondary)]">Preview</summary>
+                <p className="text-muted mt-2 text-[12px]">Shortened view of the full agent context (what users get in chat).</p>
+                <pre className="text-muted mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_30%,transparent)] p-3 font-mono text-[11px] leading-relaxed">
+                  {effectivePreview}
                 </pre>
-              </li>
-            ))}
-          </ul>
+              </details>
+            </details>
+
+            <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => void saveBehavior()}
+                className="brand-pill-active w-fit rounded-xl px-6 py-2.5 text-sm font-medium"
+              >
+                Save changes
+              </button>
+              <p className="text-muted text-[13px] leading-snug">Saved settings apply to all users in this workspace.</p>
+            </div>
+          </div>
         )}
       </SectionCard>
     </div>

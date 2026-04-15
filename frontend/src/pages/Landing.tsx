@@ -21,8 +21,8 @@ const features = [
   },
   {
     icon: <FiCpu className="size-5" strokeWidth={2.25} />,
-    title: "Agent personas",
-    body: "Tune how the assistant behaves for your team from the admin workspace.",
+    title: "Workspace agent",
+    body: "Admins set organization, guardrails, and guidelines in one place—everyone gets the same agent behavior in chat.",
   },
 ];
 
