@@ -279,28 +279,27 @@ export default function Chat() {
     setDeleteModalOpen(false);
     setThreadIdToDelete(null);
 
-    threadMessagesFetchId.current += 1;
     if (getAccessToken() && isServerChatThreadId(id)) {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/threads/${id}`, {
+        await fetch(`${API_BASE_URL}/api/chat/threads/${id}`, {
           method: "DELETE",
           headers: buildAuthHeaders(),
         });
-        if (!res.ok) return;
-      } catch {
-        return;
+      } catch (err) {
+        console.error("Server deletion error:", err);
       }
     }
 
-    const next = conversationsRef.current.filter((c) => c.id !== id);
-    setConversations(next);
-    setActiveConversationId((aid) => {
-      if (aid !== id) return aid;
-      return next[0]?.id ?? "";
+    setConversations((current) => {
+      const next = current.filter((c) => c.id !== id);
+      if (activeConversationId === id) {
+        setActiveConversationId(next[0]?.id ?? "");
+      }
+      if (next.length === 0) {
+        queueMicrotask(() => void createConversation());
+      }
+      return next;
     });
-    if (next.length === 0) {
-      queueMicrotask(() => void createConversation());
-    }
   }
 
   async function handleChatSubmit() {
