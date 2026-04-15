@@ -1,7 +1,6 @@
 import argparse
-import asyncio
 import sys
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +14,9 @@ from langchain_openai import ChatOpenAI
 
 from app.agent.citations import citations_from_tool_output
 from app.agent.prompts import agent_system_prompt
-from app.agent.tools import internet_search, knowledge_base_search
+from app.agent.tools import make_internet_search_tool, make_knowledge_base_search_tool
 from app.config import OPENAI_MODEL
+from app.services.runtime_config import RuntimeModelConfig
 
 
 def filter_agent_chat_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -48,12 +48,24 @@ def build_agent(
     system_prompt: str | None = None,
     model_name: str | None = None,
     tools: list | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ):
-    model = ChatOpenAI(
-        model=model_name or OPENAI_MODEL,
-        streaming=True,
-    )
-    resolved_tools = tools if tools is not None else [knowledge_base_search, internet_search]
+    if runtime_config is not None:
+        model = ChatOpenAI(
+            **runtime_config.chat_openai_kwargs(
+                model=model_name or runtime_config.chat_model,
+                streaming=True,
+            )
+        )
+    else:
+        model = ChatOpenAI(
+            model=model_name or OPENAI_MODEL,
+            streaming=True,
+        )
+    resolved_tools = tools if tools is not None else [
+        make_knowledge_base_search_tool(runtime_config),
+        make_internet_search_tool(),
+    ]
     return create_deep_agent(
         name="research_agent",
         model=model,
@@ -93,8 +105,14 @@ async def astream_agent_events(
     system_prompt: str | None = None,
     model_name: str | None = None,
     tools: list | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    agent = build_agent(system_prompt=system_prompt, model_name=model_name, tools=tools)
+    agent = build_agent(
+        system_prompt=system_prompt,
+        model_name=model_name,
+        tools=tools,
+        runtime_config=runtime_config,
+    )
 
     if messages:
         lc_messages = dict_messages_to_langchain(filter_agent_chat_messages(messages))
@@ -147,46 +165,6 @@ async def astream_agent_events(
 
         if event_name == "on_chain_end" and yielded_token:
             yield {"type": "status", "label": "Finalizing"}
-
-
-def stream_agent_text(
-    query: str | None = None,
-    *,
-    messages: list[dict[str, str]] | None = None,
-    system_prompt: str | None = None,
-    model_name: str | None = None,
-    tools: list | None = None,
-) -> Iterator[str]:
-    agent = build_agent(system_prompt=system_prompt, model_name=model_name, tools=tools)
-    if messages:
-        lc_messages = dict_messages_to_langchain(filter_agent_chat_messages(messages))
-    elif query:
-        lc_messages = [HumanMessage(content=query)]
-    else:
-        raise ValueError("A query or chat messages are required.")
-    for message_chunk, _metadata in agent.stream(
-        {"messages": lc_messages},
-        stream_mode="messages",
-    ):
-        if isinstance(message_chunk, AIMessageChunk) and message_chunk.content:
-            yield str(message_chunk.content)
-
-
-def stream_agent_events(
-    query: str | None = None,
-    *,
-    messages: list[dict[str, str]] | None = None,
-) -> Iterator[dict[str, str]]:
-    async def _collect():
-        events: list[dict[str, str]] = []
-        async for event in astream_agent_events(query=query, messages=messages):
-            events.append(event)
-        return events
-
-    for item in asyncio.run(_collect()):
-        yield item
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the banking deep agent.")
     parser.add_argument("--query", help="Question to ask the agent.")

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
+import secrets
 
 from fastapi import UploadFile
 from pydantic import BaseModel, ConfigDict
@@ -23,6 +24,7 @@ from app.services.documents_repo import (
     ensure_migrated,
     upsert_document_row,
 )
+from app.services.runtime_config import RuntimeModelConfig
 
 
 class ManagedDocument(BaseModel):
@@ -38,11 +40,6 @@ class ManagedDocument(BaseModel):
     needs_reindex: bool
     status: str
     indexed_at: str | None = None
-
-
-def _utc_iso() -> str:
-    return datetime.now(tz=UTC).isoformat()
-
 
 def _build_managed_document(file_path: Path, row: DocumentRow | None) -> ManagedDocument:
     stat = file_path.stat()
@@ -99,9 +96,19 @@ async def save_uploaded_file(db: Session, file: UploadFile) -> ManagedDocument:
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     filename = Path(file.filename or "upload.bin").name
     destination = (UPLOAD_DIR / filename).resolve()
-    content = await file.read()
-    destination.write_bytes(content)
-    await file.close()
+    tmp_destination = destination.with_suffix(destination.suffix + f".{secrets.token_hex(4)}.part")
+    try:
+        with tmp_destination.open("wb") as output_file:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                output_file.write(chunk)
+        tmp_destination.replace(destination)
+    finally:
+        await file.close()
+        if tmp_destination.exists():
+            tmp_destination.unlink(missing_ok=True)
     doc_id = build_document_id(destination)
     stat = destination.stat()
     upsert_document_row(
@@ -146,6 +153,7 @@ def ingest_single_document(
     progress_callback: ProgressCallback | None = None,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> IngestionResult:
     resolved_path = Path(file_path).resolve()
     result = ingest_file_paths(
@@ -155,6 +163,7 @@ def ingest_single_document(
         progress_callback=progress_callback,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config,
     )
     _sync_documents_for_paths(db, [resolved_path], replace_all=False)
     return result
@@ -166,12 +175,14 @@ def ingest_all_documents(
     progress_callback: ProgressCallback | None = None,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> IngestionResult:
     result = ingest_documents(
         recreate_collection=True,
         progress_callback=progress_callback,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config,
     )
     file_paths = list_source_files()
     _sync_documents_for_paths(db, file_paths, replace_all=True)
@@ -185,6 +196,7 @@ def reindex_document(
     progress_callback: ProgressCallback | None = None,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> IngestionResult:
     document = get_document_by_id(db, document_id)
     return ingest_single_document(
@@ -193,6 +205,7 @@ def reindex_document(
         progress_callback=progress_callback,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config,
     )
 
 
@@ -202,6 +215,7 @@ def reindex_stale_documents(
     progress_callback: ProgressCallback | None = None,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> IngestionResult:
     """Reindex every file whose content differs from the last successful index (vectors + BM25 in one run)."""
     stale_paths: list[Path] = []
@@ -241,6 +255,7 @@ def reindex_stale_documents(
         progress_callback=progress_callback,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config,
     )
     _sync_documents_for_paths(db, stale_paths, replace_all=False)
     return result

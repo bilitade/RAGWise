@@ -336,9 +336,9 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
   return (
     <SectionCard title="API credentials & defaults">
       <p className="text-muted mb-4 max-w-2xl text-[13px] leading-snug">
-        Values saved here are stored in the database and take priority. If a value is not in the database, the API uses the matching environment
-        variable (e.g. <code className="font-mono text-[11px]">OPENAI_MODEL</code>, <code className="font-mono text-[11px]">MODEL_PROVIDER</code>,{" "}
-        <code className="font-mono text-[11px]">OPENAI_API_KEY</code> in <code className="font-mono text-[11px]">.env</code>).
+        Values saved here are stored in the database and take priority. If a value is not in the database, the API falls back to the matching
+        environment variable (for example <code className="font-mono text-[11px]">OPENAI_MODEL</code>,{" "}
+        <code className="font-mono text-[11px]">MODEL_PROVIDER</code>, or <code className="font-mono text-[11px]">OPENAI_API_KEY</code>).
       </p>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4 lg:col-span-2">
@@ -405,9 +405,8 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
             placeholder="sk-…"
           />
           <p className="text-muted max-w-xl text-[12px] leading-snug">
-            A key saved here is stored in the database and overrides <code className="font-mono text-[11px]">OPENAI_API_KEY</code> in the process
-            on each request. Paste a full key and click Save. If you only use <code className="font-mono text-[11px]">.env</code>, restart the API
-            after changing it.
+            A key saved here is stored in the database and used by chat, retrieval, and ingestion jobs. Paste a full key and click Save. If you
+            only use environment variables instead, restart the API and worker after changing them.
           </p>
         </label>
       </div>

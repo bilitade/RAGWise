@@ -26,6 +26,7 @@ from app.ingestion.tasks import (
 )
 from app.retrieval.retrieval import advanced_search, bm25_search, similarity_search
 from app.services.jobs_repo import record_job
+from app.services.runtime_config import load_runtime_model_config
 from app.services.usage_events import record_usage
 from app.services.usage_limits import enforce_monthly_limit, record_billable_request
 from sqlalchemy.orm import Session
@@ -169,11 +170,13 @@ async def upload_and_ingest_document(
     _validate_chunk_params(chunk_size, chunk_overlap, user)
     _quota_check(user, db)
     document = await save_uploaded_file(db, file)
+    runtime_config = load_runtime_model_config(db)
     task = ingest_documents_task.delay(
         input_dir=document.absolute_path,
         recreate_collection=False,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
     record_job(
@@ -196,11 +199,13 @@ def ingest_all_documents_route(
     body = body or IngestAllRequest()
     _validate_chunk_params(body.chunk_size, body.chunk_overlap, user)
     _quota_check(user, db)
+    runtime_config = load_runtime_model_config(db)
     task = ingest_documents_task.delay(
         input_dir=None,
         recreate_collection=True,
         chunk_size=body.chunk_size,
         chunk_overlap=body.chunk_overlap,
+        runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
     record_job(
@@ -224,9 +229,11 @@ def sync_stale_documents_route(
     """Queue re-ingest for files changed on disk since last index."""
     _validate_chunk_params(chunk_size, chunk_overlap, user)
     _quota_check(user, db)
+    runtime_config = load_runtime_model_config(db)
     task = sync_stale_documents_task.delay(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
     record_job(
@@ -263,10 +270,12 @@ def reindex_single_document(
         document = get_document_by_id(db, document_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    runtime_config = load_runtime_model_config(db)
     task = reindex_document_task.delay(
         document_id=document_id,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
     record_job(
@@ -324,7 +333,8 @@ def similarity_document_search(
     if not user_can_use_search_mode(user, SearchMode.similarity):
         raise HTTPException(status_code=403, detail="Not allowed")
     _quota_check(user, db)
-    results = similarity_search(query=payload.query, top_k=payload.top_k)
+    runtime_config = load_runtime_model_config(db)
+    results = similarity_search(query=payload.query, top_k=payload.top_k, runtime_config=runtime_config)
     _quota_commit(user, db, "POST /api/documents/search/similarity")
     return RetrievalResponse(results=results)
 
@@ -338,7 +348,8 @@ def bm25_document_search(
     if not user_can_use_search_mode(user, SearchMode.bm25):
         raise HTTPException(status_code=403, detail="BM25 search requires pro or admin")
     _quota_check(user, db)
-    results = bm25_search(query=payload.query, top_k=payload.top_k)
+    runtime_config = load_runtime_model_config(db)
+    results = bm25_search(query=payload.query, top_k=payload.top_k, runtime_config=runtime_config)
     _quota_commit(user, db, "POST /api/documents/search/bm25")
     return RetrievalResponse(results=results)
 
@@ -352,12 +363,14 @@ def advanced_document_search(
     if not user_can_use_search_mode(user, SearchMode.advanced):
         raise HTTPException(status_code=403, detail="Hybrid search requires pro or admin")
     _quota_check(user, db)
+    runtime_config = load_runtime_model_config(db)
     results = advanced_search(
         query=payload.query,
         top_k=payload.top_k,
         vector_top_k=payload.vector_top_k,
         bm25_top_k=payload.bm25_top_k,
         alpha=payload.hybrid_alpha,
+        runtime_config=runtime_config,
     )
     _quota_commit(user, db, "POST /api/documents/search/advanced")
     return RetrievalResponse(results=results)

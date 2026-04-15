@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections import deque
 from typing import Any
 from uuid import UUID
 
@@ -79,7 +80,6 @@ def _upsert(db: Session, key: str, value: str, *, is_secret: bool = False) -> No
         row.is_secret = is_secret
     else:
         db.add(AppSetting(key=key, value=value, is_secret=is_secret))
-    db.commit()
 
 
 @router.get("/config", response_model=SettingsConfigResponse)
@@ -115,6 +115,7 @@ def patch_config(
     if body.openai_api_key is not None and body.openai_api_key.strip():
         enc = encrypt_secret(body.openai_api_key.strip())
         _upsert(db, KEY_OPENAI_API_KEY, enc, is_secret=True)
+    db.commit()
     key_plain = load_openai_api_key(db)
     last4 = mask_last4(key_plain) if key_plain else None
     return SettingsConfigResponse(
@@ -505,6 +506,5 @@ def tail_logs(
     if not os.path.isfile(path):
         return LogsResponse(path=path, lines=[])
     with open(path, encoding="utf-8", errors="replace") as f:
-        all_lines = f.readlines()
-    tail = [ln.rstrip("\n") for ln in all_lines[-lines:]]
+        tail = [ln.rstrip("\n") for ln in deque(f, maxlen=lines)]
     return LogsResponse(path=path, lines=tail)

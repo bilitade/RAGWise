@@ -1,20 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  FiCheckCircle,
-  FiChevronDown,
-  FiClock,
-  FiCpu,
-  FiDatabase,
-  FiEdit2,
-  FiGlobe,
-  FiMessageSquare,
-  FiMic,
-  FiPlus,
-  FiSend,
-  FiSquare,
-  FiTrash2,
-  FiXCircle,
-} from "react-icons/fi";
 
 import type { ChatContextWindow, ChatCitation, ChatConversation, ChatMessage } from "../types";
 import {
@@ -25,158 +9,12 @@ import {
   isServerChatThreadId,
   mergeCitationLists,
   readSidebarPreference,
-  splitMessageCitations,
   writeSidebarPreference,
 } from "../utils";
-import AssistantMessageBody from "../components/AssistantMessageBody";
-import { SidebarToggleButton, WorkspaceMainColumn, WorkspaceSidebarRail } from "../components/WorkspaceChrome";
-import { LuMemoryStick } from "react-icons/lu";
-
-const CONTEXT_MODE_OPTIONS: { value: ChatContextWindow; label: string; hint: string }[] = [
-  { value: "min", label: "mini", hint: "5 messages" },
-  { value: "medium", label: "mid", hint: "10 messages" },
-  { value: "max", label: "max", hint: "15 messages" },
-];
-
-type StatusConfig = {
-  icon: React.ReactNode;
-  label: string;
-  subtitle: string;
-  color: string;
-  pulse: boolean;
-};
-
-function getStatusConfig(status: string, streaming: boolean): StatusConfig {
-  const s = status.toLowerCase();
-
-  if (s.includes("knowledge") || s.includes("retriev")) {
-    return {
-      icon: <FiDatabase />,
-      label: "Retrieving",
-      subtitle: "Searching the knowledge base",
-      color: "var(--primary)",
-      pulse: true,
-    };
-  }
-  if (s.includes("web") || s.includes("internet") || s.includes("search")) {
-    return {
-      icon: <FiGlobe />,
-      label: "Web Search",
-      subtitle: "Searching the internet for context",
-      color: "var(--data)",
-      pulse: true,
-    };
-  }
-  if (s.includes("reasoning") || s.includes("result")) {
-    return {
-      icon: <FiCpu />,
-      label: "Reasoning",
-      subtitle: "Processing tool results",
-      color: "var(--primary)",
-      pulse: true,
-    };
-  }
-  if (s.includes("draft") || s.includes("writing")) {
-    return {
-      icon: <FiEdit2 />,
-      label: "Drafting",
-      subtitle: "Writing the response",
-      color: "var(--success)",
-      pulse: true,
-    };
-  }
-  if (s.includes("finaliz")) {
-    return {
-      icon: <FiCheckCircle />,
-      label: "Finalizing",
-      subtitle: "Wrapping up the answer",
-      color: "var(--success)",
-      pulse: false,
-    };
-  }
-  if (s.includes("think")) {
-    return {
-      icon: <FiCpu />,
-      label: "Thinking",
-      subtitle: "Deciding what to do next",
-      color: "var(--primary)",
-      pulse: true,
-    };
-  }
-  if (s === "failed") {
-    return {
-      icon: <FiXCircle />,
-      label: "Failed",
-      subtitle: "Something went wrong",
-      color: "var(--error)",
-      pulse: false,
-    };
-  }
-  if (streaming) {
-    return {
-      icon: <FiClock />,
-      label: "Working",
-      subtitle: "Agent is processing",
-      color: "var(--accent)",
-      pulse: true,
-    };
-  }
-  return {
-    icon: <FiCheckCircle />,
-    label: "Ready",
-    subtitle: "Waiting for your message",
-    color: "var(--success)",
-    pulse: false,
-  };
-}
-
-function InlineStatusPlaceholder({
-  status,
-  activity: _activity,
-}: {
-  status: string;
-  activity: string[];
-}) {
-  const cfg = getStatusConfig(status, true);
-
-  return (
-    <div className="flex flex-col gap-2 py-0.5">
-      <div className="flex items-center gap-2">
-        <span
-          className="agent-status-dot shrink-0"
-          style={{
-            background: cfg.color,
-            animation: cfg.pulse ? "status-pulse 1.4s ease-in-out infinite" : "none",
-          }}
-        />
-        <span className="shrink-0 text-sm" style={{ color: cfg.color }}>
-          {cfg.icon}
-        </span>
-        <span className="text-xs font-semibold" style={{ color: cfg.color }}>
-          {cfg.label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function ChatMessagesSkeleton() {
-  return (
-    <div className="flex min-h-[12rem] flex-col gap-3 py-2" aria-busy="true" aria-label="Loading messages">
-      <div className="text-muted flex items-center gap-2 text-xs">
-        <FiClock className="size-3.5 animate-pulse" strokeWidth={2.25} />
-        <span>Loading conversation…</span>
-      </div>
-      {[0.92, 0.78, 0.65].map((w, i) => (
-        <div
-          key={i}
-          className="h-14 max-w-[min(100%,85%)] animate-pulse rounded-2xl bg-[color-mix(in_srgb,var(--border)_55%,var(--elevated)_45%)]"
-          style={{ width: `${w * 100}%` }}
-        />
-      ))}
-    </div>
-  );
-}
+import { SidebarToggleButton, WorkspaceMainColumn } from "../components/WorkspaceChrome";
+import ChatComposer from "../components/chat/ChatComposer";
+import ChatSidebar from "../components/chat/ChatSidebar";
+import ChatTranscript from "../components/chat/ChatTranscript";
 
 async function fetchThreadMessages(threadId: string): Promise<ChatMessage[]> {
   const res = await fetch(`${API_BASE_URL}/api/chat/threads/${threadId}/messages`, {
@@ -199,7 +37,6 @@ export default function Chat() {
   const [chatInput, setChatInput] = useState("");
   const [chatStreaming, setChatStreaming] = useState(false);
   const [chatStatus, setChatStatus] = useState("Ready");
-  const [chatActivity, setChatActivity] = useState<string[]>([]);
   const [contextWindow, setContextWindow] = useState<ChatContextWindow>("min");
   const [contextModeMenuOpen, setContextModeMenuOpen] = useState(false);
   const contextModeRef = useRef<HTMLDivElement | null>(null);
@@ -348,7 +185,6 @@ export default function Chat() {
   async function createConversation() {
     setChatInput("");
     setChatStatus("Ready");
-    setChatActivity([]);
 
     if (getAccessToken()) {
       try {
@@ -400,7 +236,6 @@ export default function Chat() {
     setActiveConversationId(id);
     setChatInput("");
     setChatStatus("Ready");
-    setChatActivity([]);
     if (!getAccessToken() || !isServerChatThreadId(id)) {
       setMessagesLoading(false);
       return;
@@ -472,7 +307,6 @@ export default function Chat() {
     setChatInput("");
     setChatStreaming(true);
     setChatStatus("Thinking");
-    setChatActivity(["Thinking"]);
 
     const requestBody = serverThread
       ? {
@@ -556,9 +390,6 @@ export default function Chat() {
           if (event === "status" && typeof payload.label === "string") {
             const statusLabel = payload.label;
             setChatStatus(statusLabel);
-            setChatActivity((current) =>
-              current[current.length - 1] === statusLabel ? current : [...current, statusLabel],
-            );
           }
 
           if (event === "error" && typeof payload.error === "string") {
@@ -651,73 +482,16 @@ export default function Chat() {
 
   return (
     <div className="chat-workspace-shell relative flex h-full min-h-0 w-full flex-1 flex-col gap-4 overflow-x-hidden lg:flex-row lg:items-stretch lg:gap-6 lg:overflow-hidden">
-      <WorkspaceSidebarRail
-        sidebarId="chat-sidebar"
+      <ChatSidebar
         open={chatSidebarOpen}
+        apiBaseUrl={API_BASE_URL}
+        conversations={conversations}
+        activeConversationId={activeConversationId}
         onOverlayDismiss={() => setChatSidebarOpen(false)}
-      >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 items-center gap-2.5 border-b border-[var(--border)] pb-3 text-[var(--data)]">
-            <FiMessageSquare className="size-5 shrink-0" strokeWidth={2.25} />
-            <span className="text-xs font-semibold uppercase tracking-wide">Conversations</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={createConversation}
-            className="brand-primary mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
-          >
-            <FiPlus className="text-base" strokeWidth={2.25} />
-            New conversation
-          </button>
-
-          <div className="mt-4 flex min-h-0 flex-1 flex-col">
-            <p className="text-muted mb-2.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide">History</p>
-            <div className="chat-history-list flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-0.5">
-              {conversations
-                .slice()
-                .sort((a, b) => b.updatedAt - a.updatedAt)
-                .map((conversation) => {
-                  const active = conversation.id === activeConversationId;
-                  return (
-                    <div
-                      key={conversation.id}
-                      className={`flex min-w-0 items-stretch gap-1 rounded-xl border transition-colors ${
-                        active
-                          ? "border-[color-mix(in_srgb,var(--primary)_30%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]"
-                          : "border-transparent hover:bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => void selectConversation(conversation.id)}
-                        className="min-w-0 flex-1 px-3 py-2.5 text-left"
-                      >
-                        <div className="truncate text-sm font-semibold">{conversation.title}</div>
-                        <div className="text-muted mt-1 line-clamp-2 text-[11px] leading-snug">
-                          {conversation.messages.at(-1)?.content || "No messages yet"}
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => void deleteConversation(conversation.id, e)}
-                        className="text-muted hover:text-[var(--error)] shrink-0 self-start rounded-lg p-2.5 transition-colors"
-                        title="Delete conversation"
-                        aria-label={`Delete ${conversation.title}`}
-                      >
-                        <FiTrash2 className="size-4" strokeWidth={2.25} />
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-
-          <div className="mt-2 shrink-0 truncate border-t border-[var(--border)] pt-2 font-mono text-[9px] text-muted" title={API_BASE_URL}>
-            {API_BASE_URL}
-          </div>
-        </div>
-      </WorkspaceSidebarRail>
+        onCreateConversation={() => void createConversation()}
+        onSelectConversation={(id) => void selectConversation(id)}
+        onDeleteConversation={(id, event) => void deleteConversation(id, event)}
+      />
 
       <WorkspaceMainColumn className="pb-5" noOuterScroll>
         <header className="mb-4">
@@ -754,140 +528,38 @@ export default function Chat() {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[color-mix(in_srgb,var(--border)_70%,transparent)] bg-[color-mix(in_srgb,var(--elevated)_50%,transparent)]">
           <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
-            <div className="chat-transcript flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-0.5 sm:gap-2.5 sm:pr-1">
-              {!threadsLoaded ||
-              (messagesLoading && activeConversation && activeConversation.messagesHydrated === false) ? (
-                <ChatMessagesSkeleton />
-              ) : chatMessages.length ? (
-                chatMessages.map((message, index) => (
-                  <div
-                    key={`${message.role}-${index}`}
-                    className={`chat-bubble max-w-[min(100%,42rem)] rounded-2xl px-3 py-2.5 text-[13px] leading-snug sm:max-w-[min(92%,42rem)] ${
-                      message.role === "user" ? "ml-auto brand-primary" : "mr-auto brand-card"
-                    }`}
-                  >
-                    {message.role === "assistant" ? (
-                      chatStreaming &&
-                      index === chatMessages.length - 1 &&
-                      !message.content &&
-                      !(message.citations && message.citations.length > 0) ? (
-                        <InlineStatusPlaceholder status={chatStatus} activity={chatActivity} />
-                      ) : (
-                        (() => {
-                          const { body, citations: fromFooter } = splitMessageCitations(message.content);
-                          const citations = mergeCitationLists(message.citations ?? [], fromFooter);
-                          return (
-                            <AssistantMessageBody
-                              content={body}
-                              citations={citations.length ? citations : undefined}
-                              conversationTitle={activeConversation?.title ?? ""}
-                            />
-                          );
-                        })()
-                      )
-                    ) : (
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-muted m-auto px-2 text-center text-sm">No messages yet.</p>
-              )}
-              <div ref={bottomAnchorRef} />
-            </div>
+            <ChatTranscript
+              threadsLoaded={threadsLoaded}
+              messagesLoading={messagesLoading}
+              activeConversationHydrated={activeConversation?.messagesHydrated !== false}
+              chatMessages={chatMessages}
+              chatStreaming={chatStreaming}
+              chatStatus={chatStatus}
+              conversationTitle={activeConversation?.title ?? ""}
+              bottomAnchorRef={bottomAnchorRef}
+            />
 
-            <div className="chat-composer mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row sm:items-end sm:gap-2.5">
-              <div className="flex min-w-0 flex-1 items-end gap-2">
-                <button
-                  type="button"
-                  onClick={toggleVoiceInput}
-                  className={`chat-composer-voice-btn shrink-0 ${isListening ? "is-listening" : ""}`}
-                  title={isListening ? "Stop" : "Voice"}
-                  aria-label={isListening ? "Stop voice input" : "Start voice input"}
-                >
-                  {isListening ? <FiSquare className="size-[18px]" strokeWidth={2.5} /> : <FiMic className="size-5" strokeWidth={2.25} />}
-                </button>
-                <div className="flex min-w-0 min-h-0 flex-1 flex-row flex-wrap items-end gap-2">
-                  <textarea
-                    value={chatInput}
-                    onChange={(event) => setChatInput(event.target.value)}
-                    onKeyDown={handleChatInputKeyDown}
-                    placeholder={isListening ? "Listening…" : "Message…"}
-                    rows={1}
-                    className="surface-input min-h-[48px] max-h-36 min-w-0 w-full flex-1 resize-y rounded-xl px-3 py-3 text-sm leading-relaxed sm:min-w-0"
-                  />
-                  <div
-                    ref={contextModeRef}
-                    className="chat-context-dropdown shrink-0"
-                    data-open={contextModeMenuOpen ? "true" : "false"}
-                  >
-                    <span
-                      className="chat-context-dropdown-prefix inline-flex items-center gap-1"
-                      id="chat-context-mode-label"
-                    >
-                      <LuMemoryStick className="size-3.5 shrink-0 opacity-90" strokeWidth={2} aria-hidden />
-                      <span>Mode</span>
-                    </span>
-                    <button
-                      type="button"
-                      className="chat-context-dropdown-trigger"
-                      aria-expanded={contextModeMenuOpen}
-                      aria-haspopup="listbox"
-                      aria-labelledby="chat-context-mode-label"
-                      title="How many recent messages the model sees each turn"
-                      onClick={() => setContextModeMenuOpen((o) => !o)}
-                    >
-                      <span className="chat-context-dropdown-trigger-value">
-                        {CONTEXT_MODE_OPTIONS.find((o) => o.value === contextWindow)?.label ?? "mini"}
-                      </span>
-                      <FiChevronDown
-                        className={`chat-context-dropdown-chevron h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
-                          contextModeMenuOpen ? "rotate-180" : ""
-                        }`}
-                        strokeWidth={2.5}
-                        aria-hidden
-                      />
-                    </button>
-                    {contextModeMenuOpen ? (
-                      <ul className="chat-context-dropdown-menu" role="listbox" aria-label="Context window size">
-                        {CONTEXT_MODE_OPTIONS.map((opt) => (
-                          <li key={opt.value} role="presentation">
-                            <button
-                              type="button"
-                              role="option"
-                              className="chat-context-dropdown-option"
-                              aria-selected={contextWindow === opt.value}
-                              onClick={() => {
-                                setContextWindow(opt.value);
-                                setContextModeMenuOpen(false);
-                              }}
-                            >
-                              <span className="chat-context-dropdown-option-title">{opt.label}</span>
-                              <span className="chat-context-dropdown-option-hint">{opt.hint}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleChatSubmit()}
-                disabled={
-                  chatStreaming ||
-                  !chatInput.trim() ||
-                  !threadsLoaded ||
-                  !activeConversation ||
-                  (messagesLoading && activeConversation.messagesHydrated === false)
-                }
-                className="chat-send-btn flex h-12 w-full shrink-0 items-center justify-center gap-2 px-4 sm:h-[48px] sm:w-auto"
-              >
-                <FiSend className="size-4" strokeWidth={2.25} />
-                <span>Send</span>
-              </button>
-            </div>
+            <ChatComposer
+              chatInput={chatInput}
+              chatStreaming={chatStreaming}
+              isListening={isListening}
+              threadsLoaded={threadsLoaded}
+              messagesLoading={messagesLoading}
+              hasActiveConversation={!!activeConversation}
+              activeConversationHydrated={activeConversation?.messagesHydrated !== false}
+              contextWindow={contextWindow}
+              contextModeMenuOpen={contextModeMenuOpen}
+              contextModeRef={contextModeRef}
+              onInputChange={setChatInput}
+              onInputKeyDown={handleChatInputKeyDown}
+              onToggleVoiceInput={toggleVoiceInput}
+              onSubmit={() => void handleChatSubmit()}
+              onToggleContextMenu={() => setContextModeMenuOpen((open) => !open)}
+              onSelectContextWindow={(value) => {
+                setContextWindow(value);
+                setContextModeMenuOpen(false);
+              }}
+            />
           </div>
         </div>
       </WorkspaceMainColumn>

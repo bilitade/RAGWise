@@ -9,6 +9,7 @@ from app.retrieval.models import SearchResult
 
 class HealthResponse(BaseModel):
     status: str = "ok"
+    checks: dict[str, str] = Field(default_factory=dict)
 
 
 class IngestionJobStatusResponse(BaseModel):

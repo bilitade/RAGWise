@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import os
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.agent.prompts import compose_default_agent_body, default_agent_config_prompt_fields
 from app.config import COMPANY_NAME
-from app.db.models import AppSetting
+from app.db.models import AgentPersona, AppSetting
+from app.services.runtime_config import RuntimeModelConfig
 
 KEY_AGENT_CONFIG_JSON = "agent_config_json"
 
@@ -157,14 +159,18 @@ def load_tool_internet_enabled(db: Session) -> bool:
     return bool(load_agent_config_dict(db).get("tool_internet", True))
 
 
-def build_agent_tools_list(db: Session):
-    from app.agent.tools import internet_search, knowledge_base_search
+def build_agent_tools_list(
+    db: Session,
+    *,
+    runtime_config: RuntimeModelConfig | None = None,
+):
+    from app.agent.tools import make_internet_search_tool, make_knowledge_base_search_tool
 
     tools: list = []
     if load_tool_knowledge_base_enabled(db):
-        tools.append(knowledge_base_search)
+        tools.append(make_knowledge_base_search_tool(runtime_config))
     if load_tool_internet_enabled(db):
-        tools.append(internet_search)
+        tools.append(make_internet_search_tool())
     return tools
 
 
@@ -215,10 +221,22 @@ def resolve_chat_system_prompt(db: Session) -> str:
     return load_agent_base_system_prompt(db)
 
 
-def resolve_full_system_prompt(db: Session) -> str:
-    """Prefix (org/guardrails) plus core prompt."""
+def _load_persona_prompt(db: Session, persona_id: UUID | None) -> str:
+    if persona_id is None:
+        return ""
+    persona = db.get(AgentPersona, persona_id)
+    if persona is None or not persona.is_active:
+        return ""
+    return persona.system_prompt.strip()
+
+
+def resolve_full_system_prompt(db: Session, *, persona_id: UUID | None = None) -> str:
+    """Prefix, core prompt, and optional persona instructions."""
     core = resolve_chat_system_prompt(db)
     prefix = build_dynamic_prefix(db)
-    if not prefix.strip():
-        return core
-    return f"{prefix}---\n\n{core}"
+    persona_prompt = _load_persona_prompt(db, persona_id)
+
+    blocks = [block for block in (prefix.strip(), core.strip()) if block]
+    if persona_prompt:
+        blocks.append(f"### Active Persona\n\n{persona_prompt}")
+    return "\n\n---\n\n".join(blocks)

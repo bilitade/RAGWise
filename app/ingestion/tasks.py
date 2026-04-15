@@ -12,21 +12,10 @@ from app.documents.service import (
 )
 from app.db.session import SessionLocal
 from app.ingestion.loader import IngestionStage, ingest_documents
-from app.services.runtime_config import apply_openai_env_from_db
+from app.services.runtime_config import RuntimeModelConfig
 from app.worker.celery_app import celery_app
 
 _log = logging.getLogger(__name__)
-
-
-def _apply_runtime_env() -> None:
-    try:
-        db = SessionLocal()
-        try:
-            apply_openai_env_from_db(db)
-        finally:
-            db.close()
-    except Exception as exc:
-        _log.warning("Celery runtime OpenAI config skipped (using process env): %s", exc)
 
 
 def _build_task_meta(
@@ -83,8 +72,9 @@ def ingest_documents_task(
     recreate_collection: bool = True,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: dict | None = None,
 ) -> dict:
-    _apply_runtime_env()
+    resolved_runtime_config = RuntimeModelConfig.from_task_payload(runtime_config)
 
     def runner(progress_callback):
         db = SessionLocal()
@@ -98,6 +88,7 @@ def ingest_documents_task(
                         progress_callback=progress_callback,
                         chunk_size=chunk_size,
                         chunk_overlap=chunk_overlap,
+                        runtime_config=resolved_runtime_config,
                     )
                 result = ingest_documents(
                     input_dir=input_path,
@@ -105,6 +96,7 @@ def ingest_documents_task(
                     progress_callback=progress_callback,
                     chunk_size=chunk_size,
                     chunk_overlap=chunk_overlap,
+                    runtime_config=resolved_runtime_config,
                 )
                 from app.ingestion.loader import list_source_files
 
@@ -115,6 +107,7 @@ def ingest_documents_task(
                 progress_callback=progress_callback,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
+                runtime_config=resolved_runtime_config,
             )
         finally:
             db.close()
@@ -132,8 +125,9 @@ def reindex_document_task(
     document_id: str,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: dict | None = None,
 ) -> dict:
-    _apply_runtime_env()
+    resolved_runtime_config = RuntimeModelConfig.from_task_payload(runtime_config)
 
     def runner(progress_callback):
         db = SessionLocal()
@@ -144,6 +138,7 @@ def reindex_document_task(
                 progress_callback=progress_callback,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
+                runtime_config=resolved_runtime_config,
             )
         finally:
             db.close()
@@ -160,8 +155,9 @@ def sync_stale_documents_task(
     self,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: dict | None = None,
 ) -> dict:
-    _apply_runtime_env()
+    resolved_runtime_config = RuntimeModelConfig.from_task_payload(runtime_config)
 
     def runner(progress_callback):
         db = SessionLocal()
@@ -171,6 +167,7 @@ def sync_stale_documents_task(
                 progress_callback=progress_callback,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
+                runtime_config=resolved_runtime_config,
             )
         finally:
             db.close()

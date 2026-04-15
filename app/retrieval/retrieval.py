@@ -18,6 +18,7 @@ from app.retrieval.helpers import (
 from app.retrieval.hybrid_search import query_hybrid_weighted
 from app.retrieval.models import ScoreKind, SearchResult
 from app.retrieval.similarity_search import similarity_search
+from app.services.runtime_config import RuntimeModelConfig
 
 __all__ = [
     "ScoreKind",
@@ -36,9 +37,10 @@ def hybrid_search(
     bm25_top_k: int = 10,
     *,
     alpha: float | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> list[SearchResult]:
     if use_qdrant_hybrid():
-        embed_model = build_embed_model()
+        embed_model = build_embed_model(runtime_config)
         qvec = embed_model.get_query_embedding(query)
         store = QdrantStore()
         dense_w = QDRANT_HYBRID_ALPHA if alpha is None else max(0.0, min(1.0, float(alpha)))
@@ -56,7 +58,7 @@ def hybrid_search(
             for p in points
         ]
 
-    retriever = get_vector_index().as_retriever(similarity_top_k=top_k)
+    retriever = get_vector_index(runtime_config).as_retriever(similarity_top_k=top_k)
     results = retriever.retrieve(query)
     return [node_with_score_to_result(result, source="hybrid") for result in results]
 
@@ -68,6 +70,7 @@ def advanced_search(
     bm25_top_k: int = 10,
     *,
     alpha: float | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> list[SearchResult]:
     return hybrid_search(
         query=query,
@@ -75,6 +78,7 @@ def advanced_search(
         vector_top_k=vector_top_k,
         bm25_top_k=bm25_top_k,
         alpha=alpha,
+        runtime_config=runtime_config,
     )
 
 

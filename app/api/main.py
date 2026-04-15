@@ -1,26 +1,22 @@
-import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.api.routers import auth, chat, documents, health, me, personas, settings
 from app.config import API_CORS_ORIGINS, API_HOST, API_PORT, API_RELOAD
-from app.db.models import Base
-from app.db.session import SessionLocal, engine
+from app.db.session import SessionLocal
 from app.logging_config import setup_file_logging
 
 
 setup_file_logging()
-log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.bootstrap import ensure_initial_admin
 
-    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         ensure_initial_admin(db)
@@ -42,23 +38,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.middleware("http")
-async def apply_runtime_openai(request: Request, call_next):
-    if request.url.path.startswith("/api"):
-        from app.services.runtime_config import apply_openai_env_from_db
-
-        db = SessionLocal()
-        try:
-            apply_openai_env_from_db(db)
-        except Exception as exc:
-            log.warning("Could not apply runtime OpenAI settings: %s", exc)
-        finally:
-            db.close()
-    return await call_next(request)
-
-
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(me.router, prefix="/api")

@@ -21,6 +21,7 @@ from app.config import (
     UPLOAD_DIR,
 )
 from app.db.qdrant import QdrantStore
+from app.services.runtime_config import RuntimeModelConfig
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 
@@ -89,10 +90,14 @@ def _emit_progress(
     return stage
 
 
-def _build_embed_model() -> OpenAIEmbedding:
-    kwargs: dict[str, object] = {"model": OPENAI_EMBED_MODEL}
-    if OPENAI_EMBED_DIMENSIONS is not None:
-        kwargs["dimensions"] = OPENAI_EMBED_DIMENSIONS
+def _build_embed_model(runtime_config: RuntimeModelConfig | None = None) -> OpenAIEmbedding:
+    kwargs: dict[str, object]
+    if runtime_config is not None:
+        kwargs = runtime_config.embed_model_kwargs()
+    else:
+        kwargs = {"model": OPENAI_EMBED_MODEL}
+        if OPENAI_EMBED_DIMENSIONS is not None:
+            kwargs["dimensions"] = OPENAI_EMBED_DIMENSIONS
     return OpenAIEmbedding(**kwargs)
 
 
@@ -282,6 +287,7 @@ def ingest_file_paths(
     progress_callback: ProgressCallback | None = None,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> IngestionResult:
     if not file_paths:
         raise ValueError("No files were provided for ingestion.")
@@ -357,7 +363,7 @@ def ingest_file_paths(
                 details={"nodes_generated": len(nodes)},
             )
         )
-        embed_model = _build_embed_model()
+        embed_model = _build_embed_model(runtime_config)
         vector_size = len(embed_model.get_text_embedding("dimension probe"))
         qdrant = QdrantStore()
         if qdrant.collection_exists():
@@ -484,6 +490,7 @@ def ingest_documents(
     *,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> IngestionResult:
     source_files = list_source_files(input_dir=input_dir)
     result = ingest_file_paths(
@@ -493,6 +500,7 @@ def ingest_documents(
         progress_callback=progress_callback,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
+        runtime_config=runtime_config,
     )
     return result.model_copy(update={"input_dir": str(Path(input_dir) if input_dir else UPLOAD_DIR)})
 
