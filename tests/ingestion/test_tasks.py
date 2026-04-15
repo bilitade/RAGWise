@@ -1,3 +1,7 @@
+"""app.ingestion.tasks (Celery; requires Redis)."""
+
+from __future__ import annotations
+
 import time
 import uuid
 from pathlib import Path
@@ -9,7 +13,6 @@ from redis import Redis
 from app.ingestion.loader import IngestionResult, IngestionStage
 from app.ingestion.tasks import get_task_result, ingest_documents_task
 from app.worker.celery_app import celery_app
-
 
 TEST_REDIS_URL = "redis://localhost:6379/15"
 
@@ -25,7 +28,7 @@ def _redis_available() -> bool:
 
 pytestmark = pytest.mark.skipif(
     not _redis_available(),
-    reason="Redis is required for Celery ingestion task integration tests.",
+    reason="Redis required for Celery ingestion integration tests.",
 )
 
 
@@ -56,7 +59,7 @@ def redis_cleanup():
     client.flushdb()
 
 
-def test_ingestion_task_runs_in_background_and_reports_stage_status(
+def test_ingest_documents_task_emits_stage_history(
     monkeypatch: pytest.MonkeyPatch,
     celery_test_app,
     redis_cleanup,
@@ -142,11 +145,13 @@ def test_ingestion_task_runs_in_background_and_reports_stage_status(
         deadline = time.time() + 10
         while time.time() < deadline:
             task = get_task_result(async_result.id)
-            if isinstance(task.info, dict) and isinstance(task.info.get("stage_history"), list):
+            info = task.info if isinstance(task.info, dict) else {}
+            hist = info.get("stage_history")
+            if isinstance(hist, list):
                 observed_stages = [
-                    stage["name"]
-                    for stage in task.info["stage_history"]
-                    if isinstance(stage, dict) and stage.get("name")
+                    str(n)
+                    for stage in hist
+                    if isinstance(stage, dict) and (n := stage.get("name"))
                 ]
             if task.successful():
                 break

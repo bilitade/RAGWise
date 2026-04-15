@@ -119,7 +119,7 @@ export function buildDownloadableFileSpec(
                 if (firstKey && firstKey.length < 32) subTitle = firstKey;
             }
         } catch {
-            /* unparseable */
+            /* ignore */
         }
     }
 

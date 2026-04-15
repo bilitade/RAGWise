@@ -1,4 +1,4 @@
-"""Platform-wide agent behavior: single JSON config in DB (with legacy key migration)."""
+"""Agent config stored as one JSON row (legacy keys migrated once)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from app.db.models import AppSetting
 
 KEY_AGENT_CONFIG_JSON = "agent_config_json"
 
-# Legacy row keys (migrated into JSON once, then removed)
 _LEGACY_KEYS = (
     "agent_base_system_prompt",
     "agent_tool_knowledge_base",
@@ -27,7 +26,7 @@ _LEGACY_KEYS = (
 
 
 def default_agent_config() -> dict[str, Any]:
-    """Default agent configuration (versioned JSON document). Core prompt text comes from `app.agent.prompts`."""
+    """Default agent config document."""
     return {
         "version": 1,
         "company_display_name": "",
@@ -55,7 +54,7 @@ def _legacy_flag(row: AppSetting | None, *, default: bool) -> bool:
 
 
 def _migrate_legacy_to_json(db: Session) -> dict[str, Any]:
-    """Build config from legacy AppSetting rows, persist JSON, drop legacy keys."""
+    """Migrate legacy rows to JSON and delete old keys."""
     cfg = default_agent_config()
 
     row_base = _read_row(db, "agent_base_system_prompt")
@@ -100,7 +99,7 @@ def _parse_json_config(raw: str) -> dict[str, Any] | None:
 
 
 def load_agent_config_dict(db: Session) -> dict[str, Any]:
-    """Merged agent config (defaults + DB JSON, migrating legacy rows if needed)."""
+    """Load merged config; migrate legacy rows if needed."""
     row = _read_row(db, KEY_AGENT_CONFIG_JSON)
     if row and row.value and str(row.value).strip():
         parsed = _parse_json_config(str(row.value))
@@ -108,7 +107,6 @@ def load_agent_config_dict(db: Session) -> dict[str, Any]:
             merged = default_agent_config()
             merged.update(parsed)
             merged["version"] = int(merged.get("version") or 1)
-            # Drop unknown keys from stored JSON (older clients may have written extras)
             sanitized = default_agent_config()
             for k in sanitized:
                 if k in merged:
@@ -116,12 +114,11 @@ def load_agent_config_dict(db: Session) -> dict[str, Any]:
             sanitized["version"] = merged["version"]
             return sanitized
 
-    # No valid JSON: migrate legacy keys into one document
     return _migrate_legacy_to_json(db)
 
 
 def save_agent_config_dict(db: Session, cfg: dict[str, Any], *, commit: bool = True) -> None:
-    """Persist config as one JSON string (only known keys; avoids arbitrary injection)."""
+    """Persist known keys only."""
     base = default_agent_config()
     for k in base:
         if k in cfg:
@@ -214,12 +211,12 @@ def build_dynamic_prefix(db: Session) -> str:
 
 
 def resolve_chat_system_prompt(db: Session) -> str:
-    """Core behavior text from admin agent settings + optional env override; tool-selection rules remain in `app.agent.prompts`."""
+    """Core system prompt from config."""
     return load_agent_base_system_prompt(db)
 
 
 def resolve_full_system_prompt(db: Session) -> str:
-    """Organization / guardrails / guidelines prefix + core. No per-user or per-chat persona overrides."""
+    """Prefix (org/guardrails) plus core prompt."""
     core = resolve_chat_system_prompt(db)
     prefix = build_dynamic_prefix(db)
     if not prefix.strip():

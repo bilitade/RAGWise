@@ -38,7 +38,7 @@ def get_request_user_optional(
 def require_active_user(
     user: Annotated[User | None, Depends(get_request_user_optional)],
 ) -> User | None:
-    """When REQUIRE_AUTH is true, a valid JWT must be present."""
+    """Enforce ``REQUIRE_AUTH``."""
     if REQUIRE_AUTH and user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,7 +63,7 @@ def require_pro_or_admin(
 def require_user(
     user: Annotated[User | None, Depends(require_active_user)],
 ) -> User:
-    """Valid JWT required (used for persisted chat and other user-scoped routes)."""
+    """Require authenticated user."""
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -17,7 +17,6 @@ class QdrantConnectionConfig(BaseModel):
 class QdrantStore:
     def __init__(self, config: QdrantConnectionConfig | None = None) -> None:
         self.config = config or QdrantConnectionConfig()
-        # Local Qdrant has no API key; cloud Qdrant with auth is not configured here.
         self._client = QdrantClient(
             url=self.config.url,
             timeout=self.config.timeout,

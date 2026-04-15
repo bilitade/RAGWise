@@ -636,7 +636,6 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
   );
 }
 
-/** Mirrors `default_agent_config()` on the server. */
 type AgentConfig = {
   version: number;
   company_display_name: string;

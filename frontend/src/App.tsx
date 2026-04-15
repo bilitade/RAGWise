@@ -30,7 +30,6 @@ export default function App() {
     return () => window.removeEventListener("popstate", handleRouteChange);
   }, []);
 
-  /** Role-based route access (authenticated users only). */
   useEffect(() => {
     if (authLoading || !user) return;
     if (user.role === "normal" && (route === "/documents" || route === "/settings")) {

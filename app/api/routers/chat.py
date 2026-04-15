@@ -47,7 +47,7 @@ def _sse(event: str, data: dict) -> str:
 
 
 def _friendly_stream_error(exc: BaseException) -> str:
-    """Avoid dumping raw OpenAI 401 bodies into the chat UI."""
+    """User-facing SSE error text."""
     text = str(exc)
     lower = text.lower()
     if (

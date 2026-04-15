@@ -64,13 +64,8 @@ ContextWindowOption = Literal["min", "medium", "max"]
 class ChatStreamRequest(BaseModel):
     messages: list[ChatTurn] = Field(default_factory=list)
     persona_id: str | None = None
-    """Ignored; agent behavior comes from admin settings only. Kept for backward-compatible clients."""
-
     thread_id: str | None = None
-    """When set, continue this thread; omit to start a new persisted thread (authenticated users)."""
-
     context_window: ContextWindowOption | None = None
-    """Sliding window over the last N user+assistant messages: 5 / 10 / 15."""
 
 
 class ChatThreadCreate(BaseModel):

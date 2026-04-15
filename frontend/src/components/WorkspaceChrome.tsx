@@ -6,7 +6,6 @@ import type { ThemeMode } from "../types";
 import { navigateTo } from "../utils";
 import BrandWordmark from "./BrandWordmark";
 
-/** Unified width for Documents, Settings, and Chat side rails (px). Keep in sync with Tailwind classes below. */
 export const WORKSPACE_SIDEBAR_WIDTH = 280;
 
 export type WorkspaceAppPage = "documents" | "chat" | "settings";
@@ -156,10 +155,6 @@ type WorkspaceSidebarRailProps = {
   children: React.ReactNode;
 };
 
-/**
- * Collapsible left rail: mobile drawer + desktop width animation.
- * Parent row should be `flex min-h-0 flex-1` so the rail stretches to full remaining height.
- */
 export function WorkspaceSidebarRail({ sidebarId, open, onOverlayDismiss, children }: WorkspaceSidebarRailProps) {
   return (
     <>
@@ -192,7 +187,6 @@ export function WorkspaceSidebarRail({ sidebarId, open, onOverlayDismiss, childr
 export function WorkspaceMainColumn({
   children,
   className,
-  /** When true, outer column does not scroll (e.g. Chat keeps scroll inside the transcript). */
   noOuterScroll,
 }: {
   children: React.ReactNode;

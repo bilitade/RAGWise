@@ -23,10 +23,8 @@ export default function AssistantMessageBody({
   let codeBlockIndex = 0;
   const downloadableMessage = getAssistantMessageDownloadPayload(content);
 
-  // Strip the marker from the visible content
   const displayContent = content.replace(/\[DOWNLOAD_FILE:\s*[^\]]+\]/i, "").trim();
 
-  // Safety net: if the content looks like raw JSON but isn't wrapped in a code block, wrap it.
   const isRawJson = useMemo(() => {
     const trimmed = displayContent.trim();
     if (trimmed.startsWith("{") && trimmed.endsWith("}") && !content.includes("```")) {
@@ -40,8 +38,6 @@ export default function AssistantMessageBody({
     return false;
   }, [displayContent, content]);
 
-  // Determine if we should show the top-level suggested document card.
-  // We only show it if there ARE NO internal code blocks and no "raw JSON" wrapped.
   const hasInternalCodeBlocks = content.includes("```");
   const showSuggestedDocument = !!downloadableMessage && !hasInternalCodeBlocks && !isRawJson;
 

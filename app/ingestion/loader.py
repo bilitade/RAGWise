@@ -372,8 +372,6 @@ def ingest_file_paths(
             )
         )
 
-        # Full-corpus BM25 JSONL (same chunking as ingest). Must match all files under UPLOAD_DIR,
-        # not only SQL "indexed" rows — otherwise the cache stays empty or stale.
         rebuild_bm25_cache_from_files(
             list_source_files(),
             chunk_size=chunk_size,

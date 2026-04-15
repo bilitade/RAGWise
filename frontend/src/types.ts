@@ -1,6 +1,5 @@
 export type ThemeMode = "dark" | "light";
 
-/** Matches backend `UserRole` — drives workspace navigation and API access. */
 export type UserRole = "normal" | "pro" | "admin";
 
 export type MeUser = {
@@ -74,11 +73,9 @@ export type ChatCitation = {
 export type ChatMessage = {
     role: "user" | "assistant";
     content: string;
-    /** Populated from stream or parsed from persisted assistant content. */
     citations?: ChatCitation[];
 };
 
-/** Sliding window for the agent (server applies last N user+assistant messages). */
 export type ChatContextWindow = "min" | "medium" | "max";
 
 export type ChatConversation = {
@@ -86,7 +83,6 @@ export type ChatConversation = {
     title: string;
     messages: ChatMessage[];
     updatedAt: number;
-    /** Set after the first successful message fetch for this thread (server-backed). */
     messagesHydrated?: boolean;
 };
 

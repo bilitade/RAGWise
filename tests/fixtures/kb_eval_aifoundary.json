@@ -1,0 +1,18 @@
+[
+  {
+    "question": "What is AI Foundry and which organization uses it?",
+    "reference": "AI Foundry is Coopbank's structured operating framework for delivering AI-driven transformation. It establishes a disciplined workflow for measurable business outcomes."
+  },
+  {
+    "question": "What are the nine steps of the AI Foundry workflow?",
+    "reference": "Diagnose, Redesign, Test Assumptions, Specify, Build, Analyse, Plan Rollout, Train & Implement, Monitor & Improve."
+  },
+  {
+    "question": "Name the three teams in the AI Foundry structure and what each focuses on.",
+    "reference": "Business Innovation Team defines and validates problems and solutions. Engineering Team builds enterprise-scale solutions. Adoption & Outcomes Team drives change management and adoption."
+  },
+  {
+    "question": "Why does AI Foundry exist?",
+    "reference": "AI transformation often fails when technology is pursued without process discipline. AI Foundry provides a unified operating model to ensure measurable impact and consistent delivery."
+  }
+]

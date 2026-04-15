@@ -5,7 +5,6 @@ import { API_BASE_URL, buildAuthHeaders, getAccessToken, setAccessToken } from "
 
 type AuthContextValue = {
     user: MeUser | null;
-    /** True until the first `/api/me` attempt finishes (when a token may exist). */
     authLoading: boolean;
     refreshUser: () => Promise<MeUser | null>;
     clearSession: () => void;
@@ -21,7 +20,6 @@ export function canAccessSettings(role: UserRole | undefined): boolean {
     return role === "admin";
 }
 
-/** Default workspace route after login. */
 export function defaultRouteForRole(role: UserRole): AppRoute {
     if (role === "normal") return "/chat";
     if (role === "pro") return "/documents";

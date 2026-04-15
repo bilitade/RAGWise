@@ -1,4 +1,4 @@
-"""Load OpenAI / model settings from DB with env fallback; sync to os.environ for existing code paths."""
+"""Apply OpenAI settings from DB (with env fallback) to ``os.environ``."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def _read_row(db: Session, key: str) -> AppSetting | None:
 
 
 def load_openai_api_key(db: Session) -> str | None:
-    """Prefer DB secret; on decrypt failure fall back to process env. Always strip whitespace."""
+    """DB secret, else env."""
     row = _read_row(db, KEY_OPENAI_API_KEY)
     if row and row.value:
         try:
@@ -29,14 +29,13 @@ def load_openai_api_key(db: Session) -> str | None:
             if plain:
                 return plain
         except Exception:
-            # Wrong SETTINGS_SECRET_KEY or corrupt row — allow env fallback for recovery
             pass
     env_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
     return env_key or None
 
 
 def load_default_chat_model(db: Session) -> str:
-    """Prefer DB; else current process env; else config default from initial .env load."""
+    """DB, then env, then config default."""
     row = _read_row(db, KEY_DEFAULT_CHAT_MODEL)
     if row and row.value.strip():
         return row.value.strip()
@@ -44,7 +43,7 @@ def load_default_chat_model(db: Session) -> str:
 
 
 def load_default_embed_model(db: Session) -> str:
-    """Prefer DB; else current process env; else config default from initial .env load."""
+    """DB, then env, then config default."""
     row = _read_row(db, KEY_DEFAULT_EMBED_MODEL)
     if row and row.value.strip():
         return row.value.strip()
@@ -52,7 +51,7 @@ def load_default_embed_model(db: Session) -> str:
 
 
 def load_model_provider(db: Session) -> str:
-    """Prefer DB; else MODEL_PROVIDER env; else openai."""
+    """DB, then env, then default."""
     row = _read_row(db, KEY_MODEL_PROVIDER)
     if row and row.value.strip():
         return row.value.strip()
@@ -60,11 +59,7 @@ def load_model_provider(db: Session) -> str:
 
 
 def apply_openai_env_from_db(db: Session) -> None:
-    """Set OPENAI_API_KEY and model env vars for LlamaIndex / LangChain in this process.
-
-    When no valid key is resolved, remove OPENAI_API_KEY from the environment so a
-    previously loaded (e.g. expired) key cannot keep being used after the DB is updated.
-    """
+    """Sync OpenAI key and model env vars from DB; drop key if unset."""
     key = load_openai_api_key(db)
     if key:
         os.environ["OPENAI_API_KEY"] = key

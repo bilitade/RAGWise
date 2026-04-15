@@ -53,8 +53,6 @@ from app.services.runtime_config import (
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-# --- Config ---
-
 
 class SettingsConfigResponse(BaseModel):
     model_provider: str
@@ -130,8 +128,6 @@ def patch_config(
         openai_embed_model_options=list(OPENAI_EMBED_MODEL_OPTIONS),
     )
 
-
-# --- Users ---
 
 
 class UserOut(BaseModel):
@@ -237,8 +233,6 @@ def patch_user(
         requests_this_period=u.requests_this_period,
     )
 
-
-# --- Agent personas ---
 
 
 class PersonaOut(BaseModel):
@@ -359,8 +353,6 @@ def delete_persona(
     return {"deleted": True}
 
 
-# --- Agent behavior (base prompt, tools, default persona) ---
-
 
 class AgentBehaviorOut(BaseModel):
     """Single JSON document (`agent_config`) stored in DB; preview is computed."""
@@ -415,8 +407,6 @@ def patch_agent_behavior(
     return _agent_behavior_response(db)
 
 
-# --- Jobs ---
-
 
 class JobRow(BaseModel):
     id: str
@@ -469,8 +459,6 @@ def ingestion_jobs_alias(
     return _jobs_rows(db, limit)
 
 
-# --- Usage ---
-
 
 def _langsmith_dashboard_url() -> str:
     """Browser URL for the LangSmith UI (LANGCHAIN_ENDPOINT is the tracing API host)."""
@@ -500,8 +488,6 @@ def usage_summary(
     }
     return UsageSummaryResponse(langsmith=langsmith)
 
-
-# --- Logs ---
 
 
 class LogsResponse(BaseModel):

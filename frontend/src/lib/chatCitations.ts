@@ -1,6 +1,5 @@
 import type { ChatCitation } from "../types";
 
-/** Whether `id` looks like a server-issued chat thread UUID. */
 export function isServerChatThreadId(id: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
@@ -8,7 +7,6 @@ export function isServerChatThreadId(id: string): boolean {
 const RAG_CITATIONS_BEGIN = "<!--RAG_CITATIONS\n";
 const RAG_CITATIONS_END = "\n-->";
 
-/** Strip persisted citation JSON from assistant text and return structured sources. */
 export function splitMessageCitations(content: string): { body: string; citations: ChatCitation[] } {
     const idx = content.lastIndexOf(RAG_CITATIONS_BEGIN);
     if (idx < 0) return { body: content, citations: [] };

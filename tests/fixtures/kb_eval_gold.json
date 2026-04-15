@@ -1,0 +1,6 @@
+[
+  {
+    "question": "Minimal example question",
+    "reference": "Minimal gold answer for metrics that need a reference."
+  }
+]

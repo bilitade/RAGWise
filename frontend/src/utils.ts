@@ -1,7 +1,4 @@
-/**
- * Application helpers. New code can import from `src/lib/*` modules directly;
- * this file re-exports for stable import paths.
- */
+/** Re-exports from `src/lib/*`. */
 export * from "./lib/storageKeys";
 export * from "./lib/api";
 export * from "./lib/routing";

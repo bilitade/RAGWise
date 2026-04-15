@@ -38,7 +38,6 @@ const CONTEXT_MODE_OPTIONS: { value: ChatContextWindow; label: string; hint: str
   { value: "max", label: "max", hint: "15 messages" },
 ];
 
-// ── Status config ────────────────────────────────────────────────────────────
 type StatusConfig = {
   icon: React.ReactNode;
   label: string;
@@ -195,7 +194,6 @@ export default function Chat() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState("");
   const [threadsLoaded, setThreadsLoaded] = useState(false);
-  /** True while fetching messages for the active thread (initial load or switching threads). */
   const [messagesLoading, setMessagesLoading] = useState(false);
   const threadMessagesFetchId = useRef(0);
   const [chatInput, setChatInput] = useState("");
@@ -209,7 +207,6 @@ export default function Chat() {
   const [chatSidebarOpen, setChatSidebarOpen] = useState(() => readSidebarPreference(CHAT_SIDEBAR_KEY));
   const recognitionRef = useRef<any>(null);
   const bottomAnchorRef = useRef<HTMLDivElement | null>(null);
-  /** Skip auto-scroll when the user switched threads; still scroll on same-thread updates (send/stream). */
   const prevThreadIdRef = useRef<string | null>(null);
   const conversationsRef = useRef(conversations);
   useEffect(() => {

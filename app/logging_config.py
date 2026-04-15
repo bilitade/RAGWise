@@ -1,4 +1,4 @@
-"""Application logging setup (file + root level)."""
+"""File logging for the app process."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from app.config import APP_LOG_FILE
 
 
 def setup_file_logging() -> None:
-    """Ensure INFO logs go to APP_LOG_FILE without duplicating handlers."""
+    """Append INFO file handler for ``APP_LOG_FILE`` if missing."""
     path = Path(APP_LOG_FILE)
     path.parent.mkdir(parents=True, exist_ok=True)
     root = logging.getLogger()
