@@ -17,39 +17,39 @@ import { navigateTo } from "../utils";
 const pillars = [
   {
     icon: <FiUploadCloud className="size-5" strokeWidth={2.25} />,
-    title: "Ingest & jobs",
-    body: "Upload documents, run ingestion in the background, and inspect task status in admin settings.",
+    title: "Document ingestion",
+    body: "Upload files and run indexing in the background. Track progress and manage your knowledge base from one place.",
   },
   {
     icon: <FiSearch className="size-5" strokeWidth={2.25} />,
-    title: "Hybrid retrieval",
-    body: "Combine dense and sparse search over your indexed corpus—not a generic web search layer.",
+    title: "Precision search",
+    body: "Dense and sparse search work together to surface the most relevant passages from your documents every time.",
   },
   {
     icon: <FiMessageSquare className="size-5" strokeWidth={2.25} />,
-    title: "Source-grounded chat",
-    body: "Answers are driven by retrieved passages from your files, with visible context you can trace.",
+    title: "Cited answers",
+    body: "Every response is grounded in your documents. Sources are visible and traceable — no guesswork.",
   },
   {
     icon: <FiCpu className="size-5" strokeWidth={2.25} />,
-    title: "Controlled agent",
-    body: "Admins set identity, guardrails, and which tools are available—consistent behavior for every user.",
+    title: "Governed AI",
+    body: "Set the identity, tools, and guardrails that apply to every user. Consistent, policy-driven behavior at scale.",
   },
 ];
 
 const pipeline = [
-  { step: "01", label: "Upload", detail: "Files join your indexed corpus." },
-  { step: "02", label: "Index", detail: "Chunk, embed, and store vectors for search." },
-  { step: "03", label: "Retrieve", detail: "Hybrid search returns the most relevant passages." },
-  { step: "04", label: "Respond", detail: "The model answers using that context." },
+  { step: "01", label: "Upload", detail: "Add your documents — PDFs, reports, policies, or any text files." },
+  { step: "02", label: "Index", detail: "Documents are chunked, embedded, and stored for fast, accurate search." },
+  { step: "03", label: "Search", detail: "Every query finds the most relevant passages from your knowledge base." },
+  { step: "04", label: "Answer", detail: "The AI responds with cited, grounded answers drawn from your content." },
 ];
 
 const ctaAgentFeatures = [
   { label: "Knowledge base", Icon: FiDatabase },
   { label: "Web search", Icon: FiGlobe },
+  { label: "Source citations", Icon: FiLayers },
+  { label: "Research tools", Icon: FiZap },
   { label: "Multi-step reasoning", Icon: FiCpu },
-  { label: "Agentic tools", Icon: FiZap },
-  { label: "Persistent memory", Icon: FiLayers },
 ] as const;
 
 /** One “screen” below the app header (approx.). */
@@ -77,11 +77,11 @@ export default function Landing() {
               <div className="relative my-auto grid w-full gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(340px,580px)] lg:items-center lg:gap-14 xl:gap-16">
                 <div className="min-w-0 max-w-xl lg:pt-1">
                   <h1 className="brand-title text-[clamp(1.85rem,4.2vw,3rem)] font-semibold leading-[1.1] tracking-tight">
-                    Answers from <span className="text-[var(--data)]">your</span> documents, with retrieval you control.
+                    Answers from <span className="text-[var(--data)]">your</span> documents. Always cited. Always controlled.
                   </h1>
 
                   <p className="text-secondary mt-5 max-w-lg text-base leading-relaxed sm:text-[17px]">
-                    Grounded agentic RAG: your corpus, hybrid search, and guardrails, without defaulting to the open web.
+                    Upload your documents, ask anything, and get precise cited answers — with full control over what the AI knows and how it responds.
                   </p>
 
                   <div className="mt-7 flex flex-wrap items-center gap-2.5">
@@ -130,7 +130,7 @@ export default function Landing() {
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div className="flex min-w-0 flex-1 flex-col gap-4">
                   <p className="text-secondary max-w-2xl text-center text-base leading-relaxed lg:text-left">
-                    Hybrid retrieval, citations, and admin policies. Built for serious RAG, not generic chat.
+                    Cited answers from your documents, with admin-controlled policies. Built for enterprise use, not generic chat.
                   </p>
                   <ul
                     className="flex flex-wrap justify-center gap-2 lg:justify-start"
@@ -161,9 +161,9 @@ export default function Landing() {
         <section id="landing-features" className={`${landingScreen} flex flex-col justify-center`}>
             <div className="landing-section-surface flex w-full flex-col p-8 sm:p-10 lg:p-12">
               <div className="mb-8 max-w-3xl sm:mb-10 lg:mb-12">
-                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">What it does</h2>
+                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">Built for real work</h2>
                 <p className="text-secondary mt-3 max-w-2xl text-base leading-relaxed sm:text-lg">
-                  Ingestion, hybrid retrieval, and governed chat in one stack—without wiring separate stores and prompts.
+                  Everything you need to deploy a reliable, document-grounded AI assistant — in a single platform.
                 </p>
               </div>
               <ul className="grid flex-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4 lg:gap-7">
@@ -186,9 +186,9 @@ export default function Landing() {
         <section id="landing-flow" className={`${landingScreen} flex flex-col justify-center`}>
             <div className="landing-section-surface w-full overflow-hidden p-8 sm:p-10 lg:p-12">
               <div className="mb-8 max-w-2xl sm:mb-10">
-                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">Flow</h2>
+                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl lg:text-[2rem]">How it works</h2>
                 <p className="text-secondary mt-3 text-base leading-relaxed sm:text-lg">
-                  From file to answer in four steps.
+                  From document to answer in four steps.
                 </p>
               </div>
               <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">

@@ -57,33 +57,33 @@ type NavGroup = {
 const NAV_GROUPS: NavGroup[] = [
   {
     id: "platform",
-    label: "Platform",
+    label: "Configuration",
     items: [
       {
         id: "api",
-        title: "API & Endpoints",
+        title: "Providers",
         icon: <FiLink className="size-[1.1rem]" strokeWidth={2.25} />,
       },
       {
         id: "chat_models",
-        title: "Chat models",
+        title: "Models",
         icon: <FiMessageSquare className="size-[1.1rem]" strokeWidth={2.25} />,
       },
       {
         id: "retrieval",
-        title: "Embeddings & Qdrant",
+        title: "Embeddings",
         icon: <FiLayers className="size-[1.1rem]" strokeWidth={2.25} />,
       },
       {
         id: "email",
-        title: "Email (SMTP)",
+        title: "Email",
         icon: <FiMail className="size-[1.1rem]" strokeWidth={2.25} />,
       },
     ],
   },
   {
     id: "access",
-    label: "People & AI",
+    label: "Workspace",
     items: [
       {
         id: "users",
@@ -99,21 +99,21 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "ops",
-    label: "Operations",
+    label: "Monitoring",
     items: [
       {
         id: "jobs",
-        title: "Jobs & queue",
+        title: "Jobs",
         icon: <FiActivity className="size-[1.1rem]" strokeWidth={2.25} />,
       },
       {
         id: "usage",
-        title: "Usage & cost",
+        title: "Usage",
         icon: <FiBarChart2 className="size-[1.1rem]" strokeWidth={2.25} />,
       },
       {
         id: "logs",
-        title: "System logs",
+        title: "Logs",
         icon: <FiTerminal className="size-[1.1rem]" strokeWidth={2.25} />,
       },
     ],
@@ -218,8 +218,8 @@ export default function SettingsPage({
       </WorkspaceSidebarRail>
 
       <WorkspaceMainColumn>
-        <header className="mb-5">
-          <div className="flex items-start gap-2">
+        <header className="mb-3">
+          <div className="flex items-center gap-2">
             <SidebarToggleButton
               open={settingsSidebarOpen}
               onToggle={() => setSettingsSidebarOpen((o) => !o)}
@@ -231,7 +231,7 @@ export default function SettingsPage({
               <nav className="text-secondary text-xs font-medium" aria-label="Location">
                 Settings
               </nav>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{meta.title}</h1>
+              <h1 className="text-lg font-semibold tracking-tight sm:text-xl">{meta.title}</h1>
             </div>
           </div>
         </header>
@@ -249,7 +249,7 @@ export default function SettingsPage({
           </div>
         )}
 
-        <div className="settings-content space-y-8">
+        <div className="settings-content space-y-4">
           {activeTab === "api" || activeTab === "chat_models" || activeTab === "retrieval" || activeTab === "email" ? (
             <ConfigPanel section={activeTab} onNotify={notify} />
           ) : null}
@@ -274,12 +274,12 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="brand-card rounded-2xl p-4 sm:p-6">
-      <div className="border-b border-[var(--border)] pb-3 sm:pb-4">
-        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
-        {description ? <p className="text-secondary mt-2 max-w-2xl text-sm leading-relaxed">{description}</p> : null}
+    <section className="brand-card rounded-2xl p-3 sm:p-4">
+      <div className="border-b border-[var(--border)] pb-2">
+        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+        {description ? <p className="text-secondary mt-1 max-w-2xl text-xs leading-relaxed">{description}</p> : null}
       </div>
-      <div className="pt-4 sm:pt-5">{children}</div>
+      <div className="pt-3">{children}</div>
     </section>
   );
 }
@@ -760,15 +760,15 @@ function ConfigPanel({
     }
   }
 
-  if (section === "api") {
+    if (section === "api") {
     return (
-      <SectionCard title="API & Endpoints">
+      <SectionCard title="Providers">
         <div className="space-y-3">
           {CHAT_PROVIDERS.map((pid) => {
             const { configured, last4 } = providerKeyRow(pid);
             const editing = modelKeyEditor === pid;
             return (
-              <div key={pid} className="rounded-2xl border border-[var(--border)] p-4 sm:p-5">
+              <div key={pid} className="rounded-xl border border-[var(--border)] p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 gap-3">
                     <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_55%,transparent)]">
@@ -820,13 +820,13 @@ function ConfigPanel({
                 </div>
 
                 {editing ? (
-                  <div className="mt-4 space-y-3 border-t border-[var(--border)] pt-4">
-                    <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                  <div className="mt-3 space-y-2 border-t border-[var(--border)] pt-3">
+                    <label className="flex min-w-0 flex-col gap-1 text-sm">
                       <span className="text-secondary font-medium">New API key</span>
                       {pid === "openai" ? (
                         <input
                           type="password"
-                          className="brand-input rounded-xl px-4 py-2.5"
+                          className="brand-input rounded-xl px-3 py-2"
                           value={openaiKey}
                           onChange={(e) => setOpenaiKey(e.target.value)}
                           autoComplete="new-password"
@@ -836,22 +836,21 @@ function ConfigPanel({
                         <label className="flex min-w-0 flex-col gap-1.5 text-sm">
                           <span className="text-secondary font-medium">API base URL (optional)</span>
                           <input
-                            className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                            className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
                             value={openaiChatUrl}
                             onChange={(e) => setOpenaiChatUrl(e.target.value)}
                             placeholder="https://api.openai.com/v1"
                             spellCheck={false}
                           />
                           <span className="text-muted text-xs leading-snug">
-                            Leave blank to use the default OpenAI endpoint. Set for Azure OpenAI or other OpenAI-compatible
-                            gateways.
+                            Leave blank for the default endpoint. Set for Azure OpenAI or compatible gateways.
                           </span>
                         </label>
                       ) : null}
                       {pid === "groq" ? (
                         <input
                           type="password"
-                          className="brand-input rounded-xl px-4 py-2.5"
+                          className="brand-input rounded-xl px-3 py-2"
                           value={groqKey}
                           onChange={(e) => setGroqKey(e.target.value)}
                           autoComplete="new-password"
@@ -861,7 +860,7 @@ function ConfigPanel({
                         <label className="flex min-w-0 flex-col gap-1.5 text-sm">
                           <span className="text-secondary font-medium">OpenAI-compatible API base URL</span>
                           <input
-                            className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                            className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
                             value={groqBaseUrl}
                             onChange={(e) => setGroqBaseUrl(e.target.value)}
                             spellCheck={false}
@@ -871,7 +870,7 @@ function ConfigPanel({
                       {pid === "openrouter" ? (
                         <input
                           type="password"
-                          className="brand-input rounded-xl px-4 py-2.5"
+                          className="brand-input rounded-xl px-3 py-2"
                           value={openrouterKey}
                           onChange={(e) => setOpenrouterKey(e.target.value)}
                           autoComplete="new-password"
@@ -881,7 +880,7 @@ function ConfigPanel({
                         <label className="flex min-w-0 flex-col gap-1.5 text-sm">
                           <span className="text-secondary font-medium">OpenAI-compatible API base URL</span>
                           <input
-                            className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                            className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
                             value={openrouterBaseUrl}
                             onChange={(e) => setOpenrouterBaseUrl(e.target.value)}
                             spellCheck={false}
@@ -891,7 +890,7 @@ function ConfigPanel({
                       {pid === "huggingface" ? (
                         <input
                           type="password"
-                          className="brand-input rounded-xl px-4 py-2.5"
+                          className="brand-input rounded-xl px-3 py-2"
                           value={hfKey}
                           onChange={(e) => setHfKey(e.target.value)}
                           autoComplete="new-password"
@@ -900,7 +899,7 @@ function ConfigPanel({
                       {pid === "nvidia" ? (
                         <input
                           type="password"
-                          className="brand-input rounded-xl px-4 py-2.5"
+                          className="brand-input rounded-xl px-3 py-2"
                           value={nvidiaKey}
                           onChange={(e) => setNvidiaKey(e.target.value)}
                           autoComplete="new-password"
@@ -911,7 +910,7 @@ function ConfigPanel({
                       <label className="flex min-w-0 flex-col gap-1.5 text-sm">
                         <span className="text-secondary font-medium">OpenAI-compatible base URL</span>
                         <input
-                          className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                          className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
                           value={hfBaseUrl}
                           onChange={(e) => setHfBaseUrl(e.target.value)}
                           spellCheck={false}
@@ -922,7 +921,7 @@ function ConfigPanel({
                       <label className="flex min-w-0 flex-col gap-1.5 text-sm">
                         <span className="text-secondary font-medium">OpenAI-compatible base URL</span>
                         <input
-                          className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                          className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
                           value={nvidiaBaseUrl}
                           onChange={(e) => setNvidiaBaseUrl(e.target.value)}
                           spellCheck={false}
@@ -936,8 +935,8 @@ function ConfigPanel({
           })}
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
-          <button type="button" onClick={() => void saveApiSettings()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-3">
+          <button type="button" onClick={() => void saveApiSettings()} className="brand-pill-active rounded-xl px-5 py-2 text-sm font-medium">
             Save
           </button>
         </div>
@@ -962,11 +961,11 @@ function ConfigPanel({
         : "Choose a suggested model, an alias, or enter a custom model id, then save.";
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {isChatModelsDirty ? (
           <div
             role="status"
-            className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
           >
             <p className="text-sm font-medium text-[var(--foreground)]">You have unsaved chat model changes.</p>
             <div className="flex flex-wrap gap-2">
@@ -987,21 +986,12 @@ function ConfigPanel({
             </div>
           </div>
         ) : null}
-        <p className="text-secondary max-w-3xl text-sm leading-relaxed">
-          Configure the provider whose keys live under API &amp; Endpoints, then set the default chat model id (suggested list,
-          optional alias from the table below, or any id under Other). Save when done so the API and workers read the same values
-          from the database.
-        </p>
-
-        <SectionCard
-          title="Default chat model"
-          description="Stored as model_provider plus default_chat_model (or an alias slug that resolves server-side)."
-        >
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+        <SectionCard title="Default model">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <label className="flex min-w-0 flex-col gap-1 text-sm">
               <span className="text-secondary font-medium">Chat provider</span>
               <select
-                className="brand-input rounded-xl px-4 py-2.5"
+                className="brand-input rounded-xl px-3 py-2"
                 value={selectProviderValue}
                 onChange={(e) => {
                   const next = e.target.value as ChatProviderId;
@@ -1020,12 +1010,12 @@ function ConfigPanel({
                   </option>
                 ))}
               </select>
-              <span className="text-muted text-xs leading-snug">API keys and base URLs are on the API &amp; Endpoints tab.</span>
+              <span className="text-muted text-xs leading-snug">Configure API keys under Providers.</span>
             </label>
-            <div className="flex min-w-0 flex-col gap-1.5 text-sm">
+            <div className="flex min-w-0 flex-col gap-1 text-sm">
               <span className="text-secondary font-medium">Default (saved model id)</span>
               <select
-                className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
                 value={selectModelValue}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -1084,10 +1074,7 @@ function ConfigPanel({
           </p>
         </SectionCard>
 
-        <SectionCard
-          title="Model aliases (optional)"
-          description="Each row maps a short name to provider + model id. Choosing that name as the default stores the alias; the API resolves it to the real model id on each request."
-        >
+        <SectionCard title="Model aliases">
           <div className="mb-4 overflow-x-auto rounded-xl border border-[var(--border)]">
             <table className="w-full min-w-[32rem] text-left text-sm">
               <thead className="border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] text-secondary text-xs font-semibold uppercase tracking-wide">
@@ -1182,19 +1169,15 @@ function ConfigPanel({
           </div>
         </SectionCard>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+        <div className="flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-3">
           <button
             type="button"
             disabled={!isChatModelsDirty}
             onClick={() => void saveChatSettings()}
-            className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            className="brand-pill-active rounded-xl px-5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Save chat settings
+            Save
           </button>
-          <p className="text-secondary max-w-xl text-xs leading-relaxed">
-            Values are written to the database only when you save. Use Discard in the banner above to reload the last saved
-            configuration from the server.
-          </p>
         </div>
       </div>
     );
@@ -1202,17 +1185,14 @@ function ConfigPanel({
 
   if (section === "retrieval") {
     return (
-      <SectionCard
-        title="Embeddings & Qdrant"
-        description="Embedding model defaults, chunking for ingestion, and Qdrant connection used by the API and Celery workers."
-      >
-        <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
+      <SectionCard title="Embeddings">
+        <div className="grid gap-3 lg:grid-cols-2">
           <div className="flex gap-3 sm:items-start lg:col-span-2">
             <OpenAIBrandMark className="mt-0.5" />
             <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
               <span className="text-secondary font-medium">Embedding model</span>
               <select
-                className="brand-input rounded-xl px-4 py-2.5"
+                className="brand-input rounded-xl px-3 py-2"
                 value={embedModel}
                 onChange={(e) => setEmbedModel(e.target.value)}
                 aria-label="Default embedding model"
@@ -1230,7 +1210,7 @@ function ConfigPanel({
             <span className="text-secondary font-medium">Chunk size</span>
             <input
               type="number"
-              className="brand-input rounded-xl px-4 py-2.5"
+              className="brand-input rounded-xl px-3 py-2"
               value={chunkSize}
               min={128}
               max={4096}
@@ -1241,7 +1221,7 @@ function ConfigPanel({
             <span className="text-secondary font-medium">Chunk overlap</span>
             <input
               type="number"
-              className="brand-input rounded-xl px-4 py-2.5"
+              className="brand-input rounded-xl px-3 py-2"
               value={chunkOverlap}
               min={0}
               max={4096}
@@ -1252,7 +1232,7 @@ function ConfigPanel({
           <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
             <span className="text-secondary font-medium">Qdrant URL</span>
             <input
-              className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+              className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
               value={qdrantUrl}
               onChange={(e) => setQdrantUrl(e.target.value)}
               placeholder="https://qdrant.example.com:6333"
@@ -1261,15 +1241,15 @@ function ConfigPanel({
           <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
             <span className="text-secondary font-medium">Collection name</span>
             <input
-              className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+              className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
               value={qdrantCollection}
               onChange={(e) => setQdrantCollection(e.target.value)}
             />
           </label>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
-          <button type="button" onClick={() => void saveRetrievalTab()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-3">
+          <button type="button" onClick={() => void saveRetrievalTab()} className="brand-pill-active rounded-xl px-5 py-2 text-sm font-medium">
             Save
           </button>
         </div>
@@ -1278,64 +1258,58 @@ function ConfigPanel({
   }
 
   return (
-      <SectionCard
-        title="Email (SMTP)"
-        description="Use Google Workspace or Gmail SMTP (App Password) for outbound mail. Required for self-service password reset links."
-      >
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-xs">
-          <FiMail className="size-4 text-[var(--primary)]" aria-hidden />
+      <SectionCard title="Email">
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs">
+          <FiMail className="size-3.5 text-[var(--primary)]" aria-hidden />
           <span className="text-secondary">SMTP password</span>
           <span className={smtpPwConfigured ? "status-success font-medium" : "status-warning font-medium"}>
             {smtpPwConfigured ? `set (${smtpPwLast4 ?? "••••"})` : "not set"}
           </span>
         </div>
-        <p className="text-muted mb-4 max-w-2xl text-[12px] leading-snug">
-          Typical Google SMTP: host <code className="font-mono text-[11px]">smtp.gmail.com</code>, port <code className="font-mono text-[11px]">587</code>, TLS on, username your full address, App Password in the password field.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
             <span className="text-secondary font-medium">SMTP host</span>
-            <input className="brand-input rounded-xl px-4 py-2.5" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
+            <input className="brand-input rounded-xl px-3 py-2" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
           </label>
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-secondary font-medium">Port</span>
             <input
               type="number"
-              className="brand-input rounded-xl px-4 py-2.5"
+              className="brand-input rounded-xl px-3 py-2"
               value={smtpPort}
               min={1}
               max={65535}
               onChange={(e) => setSmtpPort(parseInt(e.target.value, 10) || 587)}
             />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="text-secondary font-medium">Use TLS (STARTTLS)</span>
-            <select className="brand-input rounded-xl px-4 py-2.5" value={smtpTls ? "yes" : "no"} onChange={(e) => setSmtpTls(e.target.value === "yes")}>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-secondary font-medium">TLS (STARTTLS)</span>
+            <select className="brand-input rounded-xl px-3 py-2" value={smtpTls ? "yes" : "no"} onChange={(e) => setSmtpTls(e.target.value === "yes")}>
               <option value="yes">Yes</option>
               <option value="no">No</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
-            <span className="text-secondary font-medium">SMTP username</span>
-            <input className="brand-input rounded-xl px-4 py-2.5" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} autoComplete="off" />
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+            <span className="text-secondary font-medium">Username</span>
+            <input className="brand-input rounded-xl px-3 py-2" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} autoComplete="off" />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
             <span className="text-secondary font-medium">From address</span>
-            <input className="brand-input rounded-xl px-4 py-2.5" value={smtpFrom} onChange={(e) => setSmtpFrom(e.target.value)} type="email" />
+            <input className="brand-input rounded-xl px-3 py-2" value={smtpFrom} onChange={(e) => setSmtpFrom(e.target.value)} type="email" />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
-            <span className="text-secondary font-medium">SMTP password</span>
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+            <span className="text-secondary font-medium">Password</span>
             <input
               type="password"
-              className="brand-input rounded-xl px-4 py-2.5"
+              className="brand-input rounded-xl px-3 py-2"
               value={smtpPassword}
               onChange={(e) => setSmtpPassword(e.target.value)}
               autoComplete="new-password"
             />
           </label>
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
-          <button type="button" onClick={() => void saveSmtp()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-3">
+          <button type="button" onClick={() => void saveSmtp()} className="brand-pill-active rounded-xl px-5 py-2 text-sm font-medium">
             Save
           </button>
         </div>
@@ -1473,7 +1447,7 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
           <label className="flex flex-col gap-1 text-sm sm:col-span-2 lg:col-span-1">
             <span className="text-secondary">Monthly request cap</span>
             <input
-              className="brand-input rounded-xl px-4 py-2.5"
+              className="brand-input rounded-xl px-3 py-2"
               placeholder="e.g. 500"
               value={newUserLimit}
               onChange={(e) => setNewUserLimit(e.target.value)}
@@ -1674,20 +1648,17 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
   const c = agentConfig;
 
   return (
-    <SectionCard
-      title="Agent"
-      description="Workspace-wide behavior in chat: identity, tools, guardrails, and optional custom instructions."
-    >
+    <SectionCard title="Agent">
       {!behaviorReady || !c ? (
         <p className="text-secondary text-sm">Loading…</p>
       ) : (
         <div className="max-w-2xl divide-y divide-[var(--border)]">
-          <div className="flex gap-3 pb-4">
+          <div className="flex gap-3 pb-3">
             <FiBriefcase className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
             <div className="min-w-0 flex-1 space-y-2">
               <div>
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Identity</h3>
-                <p className="text-muted text-[12px] leading-snug">Optional organization name for brand-aligned replies.</p>
+                <p className="text-muted text-[12px] leading-snug">Displayed in responses and documents.</p>
               </div>
               <input
                 className="brand-input w-full rounded-lg px-3 py-2 text-sm"
@@ -1699,12 +1670,12 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
             </div>
           </div>
 
-          <div className="flex gap-3 py-4">
+          <div className="flex gap-3 py-3">
             <FiLayers className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
             <div className="min-w-0 flex-1 space-y-3">
               <div>
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Capabilities</h3>
-                <p className="text-muted text-[12px] leading-snug">Allowed tools when answering.</p>
+                <p className="text-muted text-[12px] leading-snug">Tools available during a chat session.</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="flex cursor-pointer gap-2.5 rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_45%,transparent)] px-3 py-2.5 transition-colors hover:border-[color-mix(in_srgb,var(--primary)_22%,var(--border))] has-[:checked]:border-[color-mix(in_srgb,var(--primary)_38%,var(--border))] has-[:checked]:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)]">
@@ -1741,15 +1712,15 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
             </div>
           </div>
 
-          <div className="flex gap-3 py-4">
+          <div className="flex gap-3 py-3">
             <FiShield className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 flex-1 space-y-1.5">
               <div>
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Guardrails</h3>
                 <p className="text-muted text-[12px] leading-snug">Must-refuse rules, compliance, and safety limits.</p>
               </div>
               <textarea
-                className="brand-input min-h-[88px] w-full rounded-lg px-3 py-2 text-sm"
+                className="brand-input min-h-[72px] w-full rounded-lg px-3 py-2 text-sm"
                 placeholder="Optional — defaults apply if empty"
                 value={c.guardrails_text}
                 onChange={(e) => setAgentConfig({ ...c, guardrails_text: e.target.value })}
@@ -1757,15 +1728,15 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
             </div>
           </div>
 
-          <div className="flex gap-3 py-4">
+          <div className="flex gap-3 py-3">
             <FiBookOpen className="mt-0.5 size-4 shrink-0 text-[var(--primary)]" aria-hidden />
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 flex-1 space-y-1.5">
               <div>
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Guidelines</h3>
                 <p className="text-muted text-[12px] leading-snug">Tone, citations, and day-to-day expectations.</p>
               </div>
               <textarea
-                className="brand-input min-h-[88px] w-full rounded-lg px-3 py-2 text-sm"
+                className="brand-input min-h-[72px] w-full rounded-lg px-3 py-2 text-sm"
                 placeholder="Optional — defaults apply if empty"
                 value={c.guidelines_text}
                 onChange={(e) => setAgentConfig({ ...c, guidelines_text: e.target.value })}
@@ -1773,7 +1744,7 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
             </div>
           </div>
 
-          <details className="group py-4 [&_summary::-webkit-details-marker]:hidden">
+          <details className="group py-3 [&_summary::-webkit-details-marker]:hidden">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
               <FiEdit3 className="size-4 shrink-0 text-[var(--primary)]" aria-hidden />
               <span>
@@ -1781,7 +1752,7 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
               </span>
             </summary>
             <p className="text-muted mt-2 pl-6 text-[12px] leading-snug">
-              Overrides the built-in system prompt. Most teams use guardrails and guidelines only.
+              Replaces the built-in role prompt. Leave blank to use the default.
             </p>
             <textarea
               className="brand-input mt-3 min-h-[100px] w-full rounded-lg px-3 py-2 text-sm"
@@ -1797,15 +1768,14 @@ function AgentsPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
             </details>
           </details>
 
-          <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 border-t border-[var(--border)] pt-3">
             <button
               type="button"
               onClick={() => void saveBehavior()}
               className="brand-pill-active w-fit rounded-lg px-5 py-2 text-sm font-medium"
             >
-              Save changes
+              Save
             </button>
-            <p className="text-muted text-[12px]">Applies to all users in this workspace.</p>
           </div>
         </div>
       )}
@@ -1845,7 +1815,7 @@ function JobsPanel() {
   }
 
   return (
-    <SectionCard title="Recent background jobs">
+    <SectionCard title="Background Jobs">
       {jobs.length === 0 ? (
         <p className="text-secondary text-sm">No jobs.</p>
       ) : (
@@ -1938,100 +1908,73 @@ function UsagePanel() {
   const fmtInt = (n: number | null | undefined) => (n == null ? "—" : String(n));
 
   return (
-    <div className="space-y-8">
-      <SectionCard title="LangSmith (live)">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-              tracingOn ? "bg-[color-mix(in_srgb,var(--success)_18%,transparent)] text-[var(--success)]" : "text-muted bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
-            }`}
-          >
-            Tracing {tracingOn ? "on" : "off"}
-          </span>
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-              keyOk ? "bg-[color-mix(in_srgb,var(--data)_14%,transparent)] text-[var(--data)]" : "bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] text-[var(--warning)]"
-            }`}
-          >
-            API key {keyOk ? "set" : "missing"}
-          </span>
-        </div>
+    <SectionCard title="Usage">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            tracingOn
+              ? "bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-[var(--success)]"
+              : "text-muted bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
+          }`}
+        >
+          Tracing {tracingOn ? "on" : "off"}
+        </span>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            keyOk
+              ? "bg-[color-mix(in_srgb,var(--data)_12%,transparent)] text-[var(--data)]"
+              : "bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] text-[var(--warning)]"
+          }`}
+        >
+          API key {keyOk ? "set" : "missing"}
+        </span>
+        {metrics?.ok && (metrics.project_name ?? langsmith.project) ? (
+          <span className="text-muted font-mono text-xs">{metrics.project_name ?? String(langsmith.project)}</span>
+        ) : null}
+        <span className="text-muted ml-auto text-xs">Last 7 days</span>
+      </div>
 
-        {metrics?.ok ? (
-          <>
-            <p className="text-muted mb-3 text-xs">
-              Loaded from LangSmith for project <span className="font-mono text-[var(--text-secondary)]">{metrics.project_name ?? langsmith.project}</span>
-              {metrics.fetched_at ? (
-                <>
-                  {" "}
-                  · <span className="tabular-nums">{new Date(metrics.fetched_at).toLocaleString()}</span>
-                </>
-              ) : null}
-            </p>
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="brand-elevated rounded-2xl p-4">
-                <div className="text-muted text-xs uppercase tracking-wide">Est. total cost (USD)</div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums">{fmtUsd(metrics.total_cost_usd ?? undefined)}</div>
-                <p className="text-muted mt-1 text-[11px] leading-snug">
-                  LangSmith estimate for this project (includes traced LLM calls; embeddings appear here if ingestion/chat tracing sends those runs to LangSmith).
-                </p>
-              </div>
-              <div className="brand-elevated rounded-2xl p-4">
-                <div className="text-muted text-xs uppercase tracking-wide">Runs</div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums">{fmtInt(metrics.run_count ?? undefined)}</div>
-                <p className="text-muted mt-1 text-[11px] leading-snug">Traces/runs in the project (aggregate).</p>
-              </div>
-              <div className="brand-elevated rounded-2xl p-4">
-                <div className="text-muted text-xs uppercase tracking-wide">Total tokens</div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums">{fmtInt(metrics.total_tokens ?? undefined)}</div>
-              </div>
-              <div className="brand-elevated rounded-2xl p-4">
-                <div className="text-muted text-xs uppercase tracking-wide">Prompt / completion $</div>
-                <div className="mt-1 text-lg font-semibold tabular-nums">
-                  {fmtUsd(metrics.prompt_cost_usd ?? undefined)} / {fmtUsd(metrics.completion_cost_usd ?? undefined)}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : metrics && !metrics.ok ? (
-          <p className="status-error mb-4 text-sm">{metrics.error ?? "Could not load LangSmith metrics."}</p>
-        ) : (
-          <p className="text-secondary mb-4 text-sm">No metrics payload.</p>
-        )}
-
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <div className="brand-elevated flex flex-col rounded-xl px-3 py-2.5">
-            <dt className="text-muted text-xs uppercase tracking-wide">Project</dt>
-            <dd className="mt-1 font-mono text-sm font-medium break-all">{String(langsmith.project ?? "—")}</dd>
+      {metrics?.ok ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="brand-elevated rounded-xl p-3">
+            <div className="text-muted text-[11px] uppercase tracking-wide">Est. cost</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">${fmtUsd(metrics.total_cost_usd ?? undefined)}</div>
           </div>
-          <div className="brand-elevated flex flex-col rounded-xl px-3 py-2.5">
-            <dt className="text-muted text-xs uppercase tracking-wide">API endpoint</dt>
-            <dd className="mt-1 font-mono text-xs break-all">{String(langsmith.endpoint ?? "—")}</dd>
+          <div className="brand-elevated rounded-xl p-3">
+            <div className="text-muted text-[11px] uppercase tracking-wide">Runs</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">{fmtInt(metrics.run_count ?? undefined)}</div>
           </div>
-          {langsmith.workspace_id ? (
-            <div className="brand-elevated flex flex-col rounded-xl px-3 py-2.5 sm:col-span-2">
-              <dt className="text-muted text-xs uppercase tracking-wide">Workspace ID</dt>
-              <dd className="mt-1 font-mono text-xs break-all">{String(langsmith.workspace_id)}</dd>
+          <div className="brand-elevated rounded-xl p-3">
+            <div className="text-muted text-[11px] uppercase tracking-wide">Tokens</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums">{fmtInt(metrics.total_tokens ?? undefined)}</div>
+          </div>
+          <div className="brand-elevated rounded-xl p-3">
+            <div className="text-muted text-[11px] uppercase tracking-wide">Prompt / Completion</div>
+            <div className="mt-1 text-sm font-semibold tabular-nums">
+              ${fmtUsd(metrics.prompt_cost_usd ?? undefined)}{" "}
+              <span className="text-muted font-normal">/</span>{" "}
+              ${fmtUsd(metrics.completion_cost_usd ?? undefined)}
             </div>
-          ) : null}
-        </dl>
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-secondary max-w-xl text-sm">
-            Figures match the LangSmith project for this API key. Untraced work (e.g. embed-only ingestion) is not included—use your model provider’s usage/billing for that.
-          </p>
-          <a
-            href={dashboardUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="brand-secondary inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium"
-          >
-            Open LangSmith
-            <FiExternalLink className="size-4" strokeWidth={2.25} />
-          </a>
+          </div>
         </div>
-      </SectionCard>
-    </div>
+      ) : metrics && !metrics.ok ? (
+        <p className="status-error text-sm">{metrics.error ?? "Could not load metrics."}</p>
+      ) : (
+        <p className="text-secondary text-sm">No metrics available.</p>
+      )}
+
+      <div className="mt-3 flex items-center justify-end border-t border-[var(--border)] pt-3">
+        <a
+          href={dashboardUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="brand-secondary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+        >
+          Open LangSmith
+          <FiExternalLink className="size-3.5" strokeWidth={2.25} />
+        </a>
+      </div>
+    </SectionCard>
   );
 }
 

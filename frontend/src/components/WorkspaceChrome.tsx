@@ -111,14 +111,12 @@ export function WorkspaceAppBar({
             <button
               type="button"
               onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-              className={`${toolbarIconBtn} overflow-hidden rounded-full border-2 border-[var(--border)] transition-all hover:border-[var(--primary)] ${profileMenuOpen ? "border-[var(--primary)] ring-2 ring-[color-mix(in_srgb,var(--primary)_20%,transparent)]" : ""}`}
+              className={`${toolbarIconBtn} hover:border-[color-mix(in_srgb,var(--primary)_40%,transparent)] hover:text-[var(--primary)] ${profileMenuOpen ? "border-[color-mix(in_srgb,var(--primary)_40%,transparent)] text-[var(--primary)]" : ""}`}
               aria-expanded={profileMenuOpen}
               aria-haspopup="true"
               aria-label="User profile"
             >
-              <div className="flex h-full w-full items-center justify-center bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]">
-                <FiUser className="size-5" strokeWidth={2.25} />
-              </div>
+              <FiUser className="size-5" strokeWidth={2.25} />
             </button>
 
             {profileMenuOpen && user && (
