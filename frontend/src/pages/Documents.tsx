@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  FiAlignLeft,
   FiDownload,
   FiFileText,
+  FiGitMerge,
   FiLayers,
   FiRefreshCw,
   FiSearch,
   FiTrash2,
   FiUploadCloud,
+  FiZap,
 } from "react-icons/fi";
 
 import type { DocumentsTab, IngestionJob, ManagedDocument, RetrievalMode, RetrievalResult } from "../types";
@@ -66,11 +69,11 @@ function navMeta(tab: DocumentsTab) {
 
 function DocSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="brand-card rounded-2xl p-4 sm:p-6">
-      <div className="border-b border-[var(--border)] pb-3 sm:pb-4">
-        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+    <section className="brand-card rounded-2xl p-3 sm:p-4">
+      <div className="border-b border-[var(--border)] pb-2">
+        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
       </div>
-      <div className="pt-4 sm:pt-5">{children}</div>
+      <div className="pt-3">{children}</div>
     </section>
   );
 }
@@ -345,53 +348,54 @@ export default function Documents({
     return groups;
   }, []);
 
+  // ── Files ────────────────────────────────────────────────────────────────
   const filesSection = (
     <DocSection title="Library">
-      <div className="grid gap-3">
+      <div className="grid gap-2">
         {documentsLoading ? (
-          <div className="brand-elevated rounded-2xl px-4 py-8 text-center text-sm text-secondary">Loading documents…</div>
+          <div className="brand-elevated rounded-xl px-4 py-6 text-center text-sm text-secondary">
+            Loading…
+          </div>
         ) : documents.length ? (
           documents.map((document) => (
-            <div key={document.document_id} className="brand-elevated rounded-2xl p-4 sm:p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div key={document.document_id} className="brand-elevated rounded-xl p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="font-semibold">{document.filename}</h3>
-                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${getDocumentBadge(document)}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-semibold">{document.filename}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${getDocumentBadge(document)}`}>
                       {document.status}
                     </span>
                   </div>
-                  <p className="text-muted mt-2 break-all font-mono text-xs">{document.relative_path}</p>
-                  <div className="text-secondary mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                  <div className="text-muted mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
                     <span>{formatBytes(document.size_bytes)}</span>
                     <span>Modified {formatDate(document.modified_at)}</span>
                     <span>Indexed {formatDate(document.indexed_at)}</span>
                   </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2">
+                <div className="flex shrink-0 flex-wrap gap-1.5">
                   <button
                     type="button"
                     onClick={() => void handleDownload(document)}
-                    className="brand-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
+                    className="brand-secondary flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
                   >
-                    <FiDownload />
+                    <FiDownload className="size-3.5" />
                     Download
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleReindex(document.document_id)}
-                    className="brand-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium"
+                    className="brand-secondary flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
                   >
-                    <FiRefreshCw />
+                    <FiRefreshCw className="size-3.5" />
                     Reindex
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleDelete(document.document_id)}
-                    className="flex items-center gap-2 rounded-xl border border-[color-mix(in_srgb,var(--error)_35%,transparent)] px-3 py-2 text-xs font-medium text-[var(--error)] hover:bg-[color-mix(in_srgb,var(--error)_8%,transparent)]"
+                    className="flex items-center gap-1.5 rounded-lg border border-[color-mix(in_srgb,var(--error)_35%,transparent)] px-2.5 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[color-mix(in_srgb,var(--error)_8%,transparent)]"
                   >
-                    <FiTrash2 />
+                    <FiTrash2 className="size-3.5" />
                     Delete
                   </button>
                 </div>
@@ -399,183 +403,250 @@ export default function Documents({
             </div>
           ))
         ) : (
-          <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">No files.</div>
+          <div className="brand-elevated rounded-xl px-4 py-8 text-center text-sm text-secondary">
+            No files yet.
+          </div>
         )}
       </div>
     </DocSection>
   );
 
+  // ── Ingestion ────────────────────────────────────────────────────────────
   const ingestionSection = (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <DocSection title="Ingestion">
         {actionMessage ? (
-          <div className="mb-4 rounded-2xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] px-4 py-3 text-sm status-success">
+          <div className="mb-3 rounded-xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] px-3 py-2 text-sm status-success">
             {actionMessage}
           </div>
         ) : null}
         {actionError ? (
-          <div className="mb-4 rounded-2xl border border-[color-mix(in_srgb,var(--error)_45%,transparent)] bg-[color-mix(in_srgb,var(--error)_10%,transparent)] px-4 py-3 text-sm status-error">
+          <div className="mb-3 rounded-xl border border-[color-mix(in_srgb,var(--error)_45%,transparent)] bg-[color-mix(in_srgb,var(--error)_10%,transparent)] px-3 py-2 text-sm status-error">
             {actionError}
           </div>
         ) : null}
 
-        <input
-          type="file"
-          multiple
-          onChange={(event) => setSelectedFiles(event.target.files)}
-          className="surface-input w-full rounded-2xl px-4 py-4 text-sm"
-        />
+        {/* Drop zone */}
+        <label className="group relative flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_40%,transparent)] px-6 py-8 text-center transition-colors hover:border-[color-mix(in_srgb,var(--primary)_50%,transparent)] hover:bg-[color-mix(in_srgb,var(--primary)_4%,transparent)]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--primary)] transition-transform group-hover:scale-105">
+            <FiUploadCloud className="size-6" strokeWidth={2} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-[var(--text-primary)]">
+              {selectedFiles?.length
+                ? `${selectedFiles.length} file${selectedFiles.length > 1 ? "s" : ""} selected`
+                : "Drop files here or click to browse"}
+            </p>
+            <p className="text-muted mt-0.5 text-xs">PDF, DOCX, TXT, MD and more</p>
+          </div>
+          <input
+            type="file"
+            multiple
+            onChange={(event) => setSelectedFiles(event.target.files)}
+            className="sr-only"
+          />
+        </label>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => void handleUpload()}
-            disabled={uploading || !selectedFiles?.length}
-            className="brand-secondary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {uploading ? "Uploading…" : "Upload only"}
-          </button>
+        {/* Primary actions (require file selection) */}
+        <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => void handleUploadAndIngest()}
             disabled={uploadingAndIngesting || !selectedFiles?.length}
-            className="brand-primary rounded-xl px-5 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            className="brand-primary flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {uploadingAndIngesting ? "Queueing…" : "Upload & ingest"}
+            <FiUploadCloud className="size-3.5" />
+            {uploadingAndIngesting ? "Queueing…" : "Upload & index"}
           </button>
+          <button
+            type="button"
+            onClick={() => void handleUpload()}
+            disabled={uploading || !selectedFiles?.length}
+            className="brand-secondary flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {uploading ? "Uploading…" : "Upload only"}
+          </button>
+        </div>
+
+        {/* Bulk actions (no file needed) */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3">
+          <span className="text-muted text-xs">Bulk:</span>
           <button
             type="button"
             onClick={() => void handleIngestAll()}
             disabled={bulkIngesting || syncStaleIngesting}
-            className="brand-primary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            className="brand-secondary flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {bulkIngesting ? "Queueing…" : "Reingest all files"}
+            <FiRefreshCw className="size-3" />
+            {bulkIngesting ? "Queueing…" : "Re-index all"}
           </button>
           <button
             type="button"
             onClick={() => void handleSyncStale()}
             disabled={bulkIngesting || syncStaleIngesting}
-            className="brand-secondary rounded-2xl px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            title="Reindex only files that changed on disk since the last successful index (vectors and BM25 updated together)."
+            className="brand-secondary flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            title="Reindex only files changed since the last successful index."
           >
-            {syncStaleIngesting ? "Queueing…" : "Sync changed files"}
+            <FiRefreshCw className="size-3" />
+            {syncStaleIngesting ? "Queueing…" : "Sync changed"}
           </button>
         </div>
       </DocSection>
 
-      <DocSection title="Job">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="brand-elevated rounded-2xl p-5">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <div className={`text-sm font-semibold ${getStatusClass(activeStage)}`}>{jobSummary.title}</div>
-                <div className="text-muted mt-1 text-[10px] uppercase tracking-[0.2em]">{jobSummary.status}</div>
+      {/* Job status — only shown when a job exists */}
+      {activeJob?.task_id ? (
+        <DocSection title="Job status">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="brand-elevated rounded-xl p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className={`text-sm font-semibold ${getStatusClass(activeStage)}`}>{jobSummary.title}</div>
+                  <div className="text-muted mt-0.5 text-[10px] uppercase tracking-[0.2em]">{jobSummary.status}</div>
+                </div>
+                <div className="text-secondary text-sm tabular-nums">{jobSummary.progress}%</div>
               </div>
-              <div className="text-secondary text-sm tabular-nums">{jobSummary.progress}%</div>
+              <div className="progress-track h-1.5 rounded-full">
+                <div className="progress-fill h-1.5 rounded-full transition-all" style={{ width: `${jobSummary.progress}%` }} />
+              </div>
+              <div className="text-muted mt-3 font-mono text-[11px]">Task {activeJob.task_id}</div>
+              {activeJob.failed && activeJob.error ? (
+                <div className="mt-2 text-sm status-error">{activeJob.error}</div>
+              ) : null}
             </div>
-            <div className="progress-track h-2 rounded-full">
-              <div className="progress-fill h-2 rounded-full transition-all" style={{ width: `${jobSummary.progress}%` }} />
-            </div>
-            {activeJob?.task_id ? (
-              <div className="text-muted mt-4 font-mono text-[11px]">Task {activeJob.task_id}</div>
-            ) : (
-              <p className="text-secondary mt-4 text-sm">No active job.</p>
-            )}
-            {activeJob?.failed && activeJob.error ? <div className="mt-3 text-sm status-error">{activeJob.error}</div> : null}
-          </div>
-
-          <div className="brand-elevated rounded-2xl p-5">
-            <div className="text-muted text-[10px] font-semibold uppercase tracking-[0.2em]">Detail</div>
-            <div className="mt-2 text-lg font-semibold">{jobSummary.title}</div>
-            <p className="text-secondary mt-2 text-sm leading-relaxed">{jobSummary.detail}</p>
-            <div className="mt-6 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-4 text-sm">
-              <span className="text-secondary">{jobSummary.nextLabel}</span>
-              <span className={getStatusClass(activeStage)}>{jobSummary.status}</span>
+            <div className="brand-elevated rounded-xl p-3">
+              <div className="text-muted text-[10px] font-semibold uppercase tracking-[0.2em]">Detail</div>
+              <div className="mt-1.5 text-base font-semibold">{jobSummary.title}</div>
+              <p className="text-secondary mt-1.5 text-sm leading-relaxed">{jobSummary.detail}</p>
+              <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3 text-sm">
+                <span className="text-secondary">{jobSummary.nextLabel}</span>
+                <span className={getStatusClass(activeStage)}>{jobSummary.status}</span>
+              </div>
             </div>
           </div>
-        </div>
-      </DocSection>
+        </DocSection>
+      ) : null}
     </div>
   );
 
-  const searchModes: { id: RetrievalMode; label: string }[] = [
-    { id: "similarity", label: "Similarity" },
-    { id: "bm25", label: "BM25" },
-    { id: "advanced", label: "Hybrid" },
+  // ── Search ───────────────────────────────────────────────────────────────
+  const searchModes: { id: RetrievalMode; label: string; desc: string; icon: React.ReactNode }[] = [
+    {
+      id: "similarity",
+      label: "Similarity",
+      desc: "Semantic vector search — finds passages by meaning.",
+      icon: <FiZap className="size-4" strokeWidth={2.25} />,
+    },
+    {
+      id: "bm25",
+      label: "BM25",
+      desc: "Keyword ranking — precise term matching.",
+      icon: <FiAlignLeft className="size-4" strokeWidth={2.25} />,
+    },
+    {
+      id: "advanced",
+      label: "Hybrid",
+      desc: "Combines vector and keyword for best coverage.",
+      icon: <FiGitMerge className="size-4" strokeWidth={2.25} />,
+    },
   ];
 
   const searchSection = (
     <DocSection title="Search">
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <div className="flex min-w-[200px] flex-col gap-2 lg:w-56">
-          <span className="text-muted text-[10px] font-semibold uppercase tracking-[0.2em]">Mode</span>
-          {searchModes.map((m) => (
+      {/* Mode cards */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        {searchModes.map((m) => {
+          const active = retrievalMode === m.id;
+          return (
             <button
               key={m.id}
               type="button"
               onClick={() => setRetrievalMode(m.id)}
-              className={`rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-                retrievalMode === m.id
-                  ? "border-[color-mix(in_srgb,var(--primary)_40%,transparent)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] shadow-[inset_3px_0_0_0_var(--primary)]"
-                  : "border-transparent hover:bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)]"
+              className={`group flex flex-col gap-2 rounded-xl border p-3 text-left transition-all ${
+                active
+                  ? "border-[color-mix(in_srgb,var(--primary)_45%,transparent)] bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] shadow-sm"
+                  : "border-[var(--border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]"
               }`}
             >
-              {m.label}
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                  active
+                    ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] text-[var(--primary)]"
+                    : "bg-[color-mix(in_srgb,var(--elevated)_80%,transparent)] text-secondary group-hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {m.icon}
+              </span>
+              <div>
+                <p className={`text-xs font-semibold ${active ? "text-[var(--primary)]" : "text-[var(--text-primary)]"}`}>
+                  {m.label}
+                </p>
+                <p className="text-muted mt-0.5 hidden text-[11px] leading-snug sm:block">{m.desc}</p>
+              </div>
             </button>
-          ))}
+          );
+        })}
+      </div>
+
+      {/* Query bar */}
+      <div className="mt-3 flex gap-2">
+        <div className="relative min-w-0 flex-1">
+          <FiSearch className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-secondary" strokeWidth={2.25} />
+          <input
+            value={retrievalQuery}
+            onChange={(event) => setRetrievalQuery(event.target.value)}
+            placeholder="Enter a query…"
+            className="surface-input w-full rounded-xl py-2 pl-9 pr-3 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleRetrieval();
+            }}
+          />
         </div>
+        <button
+          type="button"
+          onClick={() => void handleRetrieval()}
+          disabled={retrievalLoading}
+          className="brand-primary shrink-0 rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          {retrievalLoading ? "Searching…" : "Search"}
+        </button>
+      </div>
 
-        <div className="min-w-0 flex-1 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <input
-              value={retrievalQuery}
-              onChange={(event) => setRetrievalQuery(event.target.value)}
-              placeholder="Query…"
-              className="surface-input min-w-0 flex-1 rounded-2xl px-4 py-3.5 text-sm"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleRetrieval();
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => void handleRetrieval()}
-              disabled={retrievalLoading}
-              className="brand-primary shrink-0 rounded-xl px-5 py-3 text-sm font-semibold disabled:opacity-50"
-            >
-              {retrievalLoading ? "Searching…" : "Run search"}
-            </button>
-          </div>
-
-          <div className="grid gap-3">
-            {retrievalResults.length ? (
-              retrievalResults.map((result) => (
-                <div key={result.node_id} className="brand-elevated rounded-2xl p-4">
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="text-muted font-medium uppercase tracking-wide">{String(result.metadata.filename ?? result.source)}</span>
-                    <span className="status-data text-right font-mono tabular-nums">
-                      {result.score.toFixed(4)}
-                      {result.score_kind ? (
-                        <span className="text-muted ml-2 block text-[10px] font-normal normal-case tracking-normal">
-                          {result.score_kind}
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-relaxed">{result.text}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {result.matched_by.map((item) => (
-                      <span key={`${result.node_id}-${item}`} className="brand-pill rounded-full px-3 py-1 text-[11px]">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
+      {/* Results */}
+      <div className="mt-3 grid gap-2">
+        {retrievalResults.length ? (
+          retrievalResults.map((result) => (
+            <div key={result.node_id} className="brand-elevated rounded-xl p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <FiFileText className="size-3.5 shrink-0 text-[var(--primary)]" strokeWidth={2.25} />
+                  <span className="truncate text-xs font-medium text-[var(--text-primary)]">
+                    {String(result.metadata.filename ?? result.source)}
+                  </span>
                 </div>
-              ))
-            ) : (
-              <div className="brand-elevated rounded-2xl px-4 py-10 text-center text-sm text-secondary">No results.</div>
-            )}
+                <div className="shrink-0 text-right">
+                  <span className="status-data font-mono text-xs tabular-nums">{result.score.toFixed(4)}</span>
+                  {result.score_kind ? (
+                    <span className="text-muted ml-1.5 text-[10px] font-normal">{result.score_kind}</span>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-secondary">{result.text}</p>
+              {result.matched_by.length ? (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {result.matched_by.map((item) => (
+                    <span key={`${result.node_id}-${item}`} className="brand-pill rounded-full px-2.5 py-0.5 text-[11px]">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))
+        ) : (
+          <div className="brand-elevated rounded-xl px-4 py-8 text-center text-sm text-secondary">
+            No results yet.
           </div>
-        </div>
+        )}
       </div>
     </DocSection>
   );
@@ -590,15 +661,20 @@ export default function Documents({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0">
             <div className="flex items-center gap-2.5 text-[var(--data)]">
-              <FiLayers className="size-5 shrink-0" strokeWidth={2.25} />
-              <span className="text-xs font-semibold uppercase tracking-wide">Workspace</span>
+              <FiLayers className="size-4 shrink-0" strokeWidth={2.25} />
+              <span className="text-xs font-semibold uppercase tracking-wide">Knowledge Base</span>
             </div>
           </div>
 
-          <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain" aria-label="Workspace sections">
+          <nav
+            className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain"
+            aria-label="Workspace sections"
+          >
             {Object.entries(groupedNav).map(([groupLabel, items]) => (
               <div key={groupLabel}>
-                <p className="text-muted mb-2 text-[10px] font-semibold uppercase tracking-wide">{groupLabel}</p>
+                <p className="text-muted mb-2 text-[10px] font-semibold uppercase tracking-wide">
+                  {groupLabel}
+                </p>
                 <ul className="flex flex-col gap-1">
                   {items.map((item) => {
                     const active = activeTab === item.id;
@@ -613,7 +689,9 @@ export default function Documents({
                               : "text-secondary hover:bg-[color-mix(in_srgb,var(--elevated)_75%,transparent)] hover:text-[var(--text-primary)]"
                           }`}
                         >
-                          <span className={`shrink-0 ${active ? "text-[var(--primary)]" : "text-secondary opacity-90"}`}>{item.icon}</span>
+                          <span className={`shrink-0 ${active ? "text-[var(--primary)]" : "text-secondary opacity-90"}`}>
+                            {item.icon}
+                          </span>
                           <span className="min-w-0">{item.title}</span>
                         </button>
                       </li>
@@ -623,18 +701,12 @@ export default function Documents({
               </div>
             ))}
           </nav>
-
-          <div className="shrink-0 border-t border-[var(--border)] pt-3">
-            <p className="text-muted truncate font-mono text-[9px]" title={API_BASE_URL}>
-              {API_BASE_URL}
-            </p>
-          </div>
         </div>
       </WorkspaceSidebarRail>
 
       <WorkspaceMainColumn>
-        <header className="mb-5">
-          <div className="flex items-start gap-2">
+        <header className="mb-3">
+          <div className="flex items-center gap-2">
             <SidebarToggleButton
               open={docSidebarOpen}
               onToggle={() => setDocSidebarOpen((o) => !o)}
@@ -646,24 +718,28 @@ export default function Documents({
               <nav className="text-secondary text-xs font-medium" aria-label="Location">
                 Documents
               </nav>
-              <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{meta.title}</h1>
+              <h1 className="text-lg font-semibold tracking-tight sm:text-xl">{meta.title}</h1>
             </div>
           </div>
         </header>
 
         {activeTab === "files" && (actionMessage || actionError) ? (
           <div
-            className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
+            className={`mb-3 rounded-xl border px-3 py-2 text-sm ${
               actionError
                 ? "border-[color-mix(in_srgb,var(--error)_45%,transparent)] bg-[color-mix(in_srgb,var(--error)_10%,transparent)]"
                 : "border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)]"
             }`}
           >
-            {actionError ? <span className="status-error">{actionError}</span> : <span className="status-success">{actionMessage}</span>}
+            {actionError ? (
+              <span className="status-error">{actionError}</span>
+            ) : (
+              <span className="status-success">{actionMessage}</span>
+            )}
           </div>
         ) : null}
 
-        <div className="space-y-8">
+        <div className="space-y-4">
           {activeTab === "files" ? filesSection : null}
           {activeTab === "ingestion" ? ingestionSection : null}
           {activeTab === "search" ? searchSection : null}
