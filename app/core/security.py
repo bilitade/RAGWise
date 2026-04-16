@@ -2,10 +2,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt
-from jose import JWTError, jwt
+from jose import jwt
 
 from app.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, JWT_SECRET
-from app.db.models import User, UserRole
+from app.db.models import UserRole
 
 
 def hash_password(password: str) -> str:
@@ -31,4 +31,5 @@ def create_access_token(*, user_id: str, email: str, role: UserRole) -> str:
 
 
 def decode_token(token: str) -> dict[str, Any]:
+    # python-jose validates exp; it does not support PyJWT-style clock leeway.
     return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])

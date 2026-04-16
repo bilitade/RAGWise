@@ -12,21 +12,24 @@ dependencies = [
     "alembic>=1.14.0",
     "bcrypt>=4.2.0",
     "celery[redis]>=5.6.0",
-    "cryptography>=44.0.0",
+    "cryptography>=46.0.7",
     "email-validator>=2.2.0",
     "psycopg2-binary>=2.9.10",
     "python-jose[cryptography]>=3.3.0",
-    "python-multipart==0.0.22",
+    "python-multipart>=0.0.26",
     "redis>=5.0.3,<6.5",
     "sqlalchemy>=2.0.36",
     "deepagents>=0.4.12",
     "fastapi==0.135.2",
+    "slowapi>=0.1.9",
     "llama-index-core==0.14.20",
     "llama-index-embeddings-openai==0.6.0",
     "llama-index-readers-file>=0.5.0",
     "llama-index-vector-stores-qdrant==0.10.0",
+    "langchain-core>=1.2.28",
     "langchain-openai>=1.1.12",
-    "langsmith>=0.7.25",
+    "langsmith>=0.7.31",
+    "pypdf>=6.10.1",
     "pymupdf>=1.24.0",
     "qdrant-client==1.17.1",
     "tavily-python>=0.7.23",
@@ -39,7 +42,21 @@ dependencies = [
 dev = [
     "pytest>=8.4.0",
     "ragas>=0.4.0",
+    "ruff>=0.9.0",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+# Baseline: pyflakes + critical pycodestyle (E4 import, E7 syntax, E9 runtime). Tighten with B/UP/I later.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Imports intentionally follow runtime ``sys.path`` bootstrap.
+"app/agent/agent.py" = ["E402"]
 
 [project.scripts]
 agent-cli = "app.agent.agent:main"

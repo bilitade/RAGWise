@@ -6,9 +6,8 @@ from llama_index.core import VectorStoreIndex
 from llama_index.embeddings.openai import OpenAIEmbedding
 
 from app.config import OPENAI_EMBED_MODEL, QDRANT_HYBRID_ENABLED
-from app.db.qdrant import QdrantStore
 from app.retrieval.models import ScoreKind, ScoredPoint, SearchResult
-from app.services.runtime_config import RuntimeModelConfig
+from app.services.runtime_config import RuntimeModelConfig, qdrant_store_from_runtime
 
 
 def build_embed_model(runtime_config: RuntimeModelConfig | None = None) -> OpenAIEmbedding:
@@ -17,15 +16,15 @@ def build_embed_model(runtime_config: RuntimeModelConfig | None = None) -> OpenA
     return OpenAIEmbedding(**runtime_config.embed_model_kwargs())
 
 
-def use_qdrant_hybrid() -> bool:
+def use_qdrant_hybrid(runtime_config: RuntimeModelConfig | None = None) -> bool:
     if not QDRANT_HYBRID_ENABLED:
         return False
-    q = QdrantStore()
+    q = qdrant_store_from_runtime(runtime_config)
     return q.collection_exists() and q.is_hybrid_collection()
 
 
 def get_vector_index(runtime_config: RuntimeModelConfig | None = None) -> VectorStoreIndex:
-    qdrant = QdrantStore()
+    qdrant = qdrant_store_from_runtime(runtime_config)
     return VectorStoreIndex.from_vector_store(
         vector_store=qdrant.get_vector_store(),
         embed_model=build_embed_model(runtime_config),

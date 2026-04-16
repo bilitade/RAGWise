@@ -20,8 +20,7 @@ from app.config import (
     QDRANT_HYBRID_ENABLED,
     UPLOAD_DIR,
 )
-from app.db.qdrant import QdrantStore
-from app.services.runtime_config import RuntimeModelConfig
+from app.services.runtime_config import RuntimeModelConfig, qdrant_store_from_runtime
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 
@@ -264,14 +263,27 @@ def load_documents_from_files(file_paths: list[Path]) -> list[Document]:
     return enriched_documents
 
 
+def _resolved_chunk_params(
+    runtime_config: RuntimeModelConfig | None,
+    chunk_size: int | None,
+    chunk_overlap: int | None,
+) -> tuple[int, int]:
+    base_size = runtime_config.default_chunk_size if runtime_config else INGEST_CHUNK_SIZE
+    base_overlap = runtime_config.default_chunk_overlap if runtime_config else INGEST_CHUNK_OVERLAP
+    return (
+        chunk_size if chunk_size is not None else base_size,
+        chunk_overlap if chunk_overlap is not None else base_overlap,
+    )
+
+
 def build_nodes(
     documents: list[Document],
     *,
     chunk_size: int | None = None,
     chunk_overlap: int | None = None,
+    runtime_config: RuntimeModelConfig | None = None,
 ) -> list:
-    cs = INGEST_CHUNK_SIZE if chunk_size is None else chunk_size
-    co = INGEST_CHUNK_OVERLAP if chunk_overlap is None else chunk_overlap
+    cs, co = _resolved_chunk_params(runtime_config, chunk_size, chunk_overlap)
     splitter = SentenceSplitter(
         chunk_size=cs,
         chunk_overlap=co,
@@ -293,6 +305,7 @@ def ingest_file_paths(
         raise ValueError("No files were provided for ingestion.")
 
     normalized_file_paths = [path.resolve() for path in file_paths]
+    eff_chunk_size, eff_chunk_overlap = _resolved_chunk_params(runtime_config, chunk_size, chunk_overlap)
     stages: list[IngestionStage] = []
 
     try:
@@ -307,8 +320,10 @@ def ingest_file_paths(
                     "files_requested": len(normalized_file_paths),
                     "recreate_collection": recreate_collection,
                     "replace_existing_documents": replace_existing_documents,
-                    "chunk_size": chunk_size,
-                    "chunk_overlap": chunk_overlap,
+                    "chunk_size": eff_chunk_size,
+                    "chunk_overlap": eff_chunk_overlap,
+                    "chunk_size_override": chunk_size,
+                    "chunk_overlap_override": chunk_overlap,
                 },
             )
         )
@@ -349,7 +364,12 @@ def ingest_file_paths(
                 details={"documents_loaded": len(documents)},
             )
         )
-        nodes = build_nodes(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        nodes = build_nodes(
+            documents,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            runtime_config=runtime_config,
+        )
         if not nodes:
             raise ValueError("No nodes were generated from the loaded documents.")
 
@@ -365,7 +385,7 @@ def ingest_file_paths(
         )
         embed_model = _build_embed_model(runtime_config)
         vector_size = len(embed_model.get_text_embedding("dimension probe"))
-        qdrant = QdrantStore()
+        qdrant = qdrant_store_from_runtime(runtime_config)
         if qdrant.collection_exists():
             coll_dim = qdrant.collection_dense_vector_size()
             if coll_dim is not None and coll_dim != vector_size:

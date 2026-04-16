@@ -6,7 +6,6 @@ import { WorkspaceSidebarRail } from "../WorkspaceChrome";
 
 type ChatSidebarProps = {
   open: boolean;
-  apiBaseUrl: string;
   conversations: ChatConversation[];
   activeConversationId: string;
   onOverlayDismiss: () => void;
@@ -17,7 +16,6 @@ type ChatSidebarProps = {
 
 export default function ChatSidebar({
   open,
-  apiBaseUrl,
   conversations,
   activeConversationId,
   onOverlayDismiss,
@@ -79,10 +77,6 @@ export default function ChatSidebar({
                 );
               })}
           </div>
-        </div>
-
-        <div className="mt-2 shrink-0 truncate border-t border-[var(--border)] pt-2 font-mono text-[9px] text-muted" title={apiBaseUrl}>
-          {apiBaseUrl}
         </div>
       </div>
     </WorkspaceSidebarRail>

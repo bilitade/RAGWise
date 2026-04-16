@@ -69,6 +69,13 @@ export default function Login() {
               className="brand-input rounded-2xl px-4 py-3"
               required
             />
+            <button
+              type="button"
+              onClick={() => navigateTo("/forgot-password")}
+              className="text-secondary hover:text-[var(--text-primary)] self-start text-xs font-medium"
+            >
+              Forgot password?
+            </button>
           </label>
           {error ? <p className="text-sm status-error">{error}</p> : null}
           <button

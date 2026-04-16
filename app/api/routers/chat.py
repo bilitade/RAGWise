@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,7 @@ from app.api.schemas import (
     ChatThreadUpdate,
 )
 from app.config import LANGCHAIN_PROJECT, LANGCHAIN_TRACING_V2
-from app.core.deps import require_active_user, require_user
+from app.core.deps import require_active_user, require_chat_user, require_user
 from app.db.models import User
 from app.db.session import get_db
 from app.services.chat_service import (
@@ -39,6 +39,7 @@ from app.services.agent_settings import build_agent_tools_list, resolve_full_sys
 from app.services.runtime_config import RuntimeModelConfig, load_runtime_model_config
 from app.services.usage_events import record_usage
 from app.services.usage_limits import enforce_monthly_limit, record_billable_request
+from app.rate_limit import chat_stream_limit_for_key, limiter
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -58,9 +59,9 @@ def _friendly_stream_error(exc: BaseException) -> str:
         or "authenticationerror" in lower.replace(" ", "")
     ):
         return (
-            "OpenAI rejected the API key (invalid or expired). "
-            "Update it under Settings → Models & API, click Save, then send your message again. "
-            "If you only use a key in the server .env file, restart the API after changing it."
+            "The model provider rejected the API key (invalid or expired). "
+            "Update the matching key under Settings → Configuration, click Save, then send your message again. "
+            "If you only use keys in the server .env file, restart the API and worker after changing them."
         )
     return text
 
@@ -267,10 +268,12 @@ def update_chat_thread(
 
 @router.post("")
 @router.post("/stream")
+@limiter.limit(chat_stream_limit_for_key)
 def stream_chat(
+    request: Request,
     payload: ChatStreamRequest,
     db: Session = Depends(get_db),
-    user: User | None = Depends(require_active_user),
+    user: User | None = Depends(require_chat_user),
 ) -> StreamingResponse:
     runtime_config = load_runtime_model_config(db)
     if user:

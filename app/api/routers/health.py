@@ -33,11 +33,9 @@ def _check_qdrant() -> str:
     return "ok"
 
 
-@router.get("", response_model=HealthResponse)
-def health_check() -> HealthResponse:
+def _readiness_response() -> HealthResponse:
     checks: dict[str, str] = {}
     failures: list[str] = []
-
     for name, check in (
         ("database", _check_database),
         ("redis", _check_redis),
@@ -48,10 +46,27 @@ def health_check() -> HealthResponse:
         except Exception as exc:
             checks[name] = f"error: {exc}"
             failures.append(name)
-
     if failures:
         raise HTTPException(
             status_code=503,
             detail=HealthResponse(status="degraded", checks=checks).model_dump(),
         )
     return HealthResponse(status="ok", checks=checks)
+
+
+@router.get("/live")
+def liveness() -> dict[str, str]:
+    """Process is up (Kubernetes liveness; no external I/O)."""
+    return {"status": "ok"}
+
+
+@router.get("/ready", response_model=HealthResponse)
+def readiness() -> HealthResponse:
+    """Dependencies reachable (Kubernetes readiness)."""
+    return _readiness_response()
+
+
+@router.get("", response_model=HealthResponse)
+def health_root() -> HealthResponse:
+    """Same as ``/ready`` (backward compatible for existing ``GET /api/health`` probes)."""
+    return _readiness_response()

@@ -11,23 +11,38 @@ import {
   FiGlobe,
   FiHardDrive,
   FiKey,
+  FiLink,
+  FiMail,
   FiLayers,
+  FiMessageSquare,
   FiSettings,
   FiShield,
   FiTerminal,
   FiUsers,
 } from "react-icons/fi";
-import { SiOpenai } from "react-icons/si";
+import { SiHuggingface, SiNvidia, SiOpenai } from "react-icons/si";
 
-import type { SettingsTab } from "../types";
 import {
-  API_BASE_URL,
-  fetchJson,
-  readSidebarPreference,
-  SETTINGS_SIDEBAR_KEY,
-  writeSidebarPreference,
-} from "../utils";
+  CHAT_PROVIDER_IDS as CHAT_PROVIDERS,
+  adminUiChatProvider,
+  buildChatModelSettingsPatchBody,
+  chatModelSettingsFingerprint,
+  type ChatModelAliasRow,
+  type ChatProviderId,
+  isChatProviderId,
+} from "../lib/chatModelSettings";
+import type { SettingsTab } from "../types";
+import { API_BASE_URL, fetchJson, readSidebarPreference, SETTINGS_SIDEBAR_KEY, writeSidebarPreference } from "../utils";
 import { SidebarToggleButton, WorkspaceMainColumn, WorkspaceSidebarRail } from "../components/WorkspaceChrome";
+
+function safeStr(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return typeof value === "string" ? value : String(value);
+}
+
+function trimInput(value: unknown): string {
+  return safeStr(value).trim();
+}
 
 type NavGroup = {
   id: string;
@@ -45,9 +60,24 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Platform",
     items: [
       {
-        id: "config",
-        title: "Models & API",
-        icon: <FiKey className="size-[1.1rem]" strokeWidth={2.25} />,
+        id: "api",
+        title: "API & Endpoints",
+        icon: <FiLink className="size-[1.1rem]" strokeWidth={2.25} />,
+      },
+      {
+        id: "chat_models",
+        title: "Chat models",
+        icon: <FiMessageSquare className="size-[1.1rem]" strokeWidth={2.25} />,
+      },
+      {
+        id: "retrieval",
+        title: "Embeddings & Qdrant",
+        icon: <FiLayers className="size-[1.1rem]" strokeWidth={2.25} />,
+      },
+      {
+        id: "email",
+        title: "Email (SMTP)",
+        icon: <FiMail className="size-[1.1rem]" strokeWidth={2.25} />,
       },
     ],
   },
@@ -220,7 +250,9 @@ export default function SettingsPage({
         )}
 
         <div className="settings-content space-y-8">
-          {activeTab === "config" ? <ConfigPanel onNotify={notify} /> : null}
+          {activeTab === "api" || activeTab === "chat_models" || activeTab === "retrieval" || activeTab === "email" ? (
+            <ConfigPanel section={activeTab} onNotify={notify} />
+          ) : null}
           {activeTab === "users" ? <UsersPanel onNotify={notify} /> : null}
           {activeTab === "agents" ? <AgentsPanel onNotify={notify} /> : null}
           {activeTab === "jobs" ? <JobsPanel /> : null}
@@ -264,34 +296,252 @@ function OpenAIBrandMark({ className = "" }: { className?: string }) {
   );
 }
 
+/** Groq mark: lightning (speed / LPU branding). */
+function GroqBrandMark({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M13 1.5 3.5 14.5H11l-1.2 8 10.7-13H12.4L13 1.5z"
+      />
+    </svg>
+  );
+}
+
+/** OpenRouter-style mark; simplified node motif. */
+function OpenRouterBrandMark({ className = "size-6" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden>
+      <circle cx="6" cy="12" r="3.2" fill="currentColor" />
+      <circle cx="18" cy="7" r="3.2" fill="currentColor" />
+      <circle cx="18" cy="17" r="3.2" fill="currentColor" />
+      <path
+        d="M9.2 11.2 14.5 8.6M9.2 12.8 14.5 15.4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+function ProviderBrandMark({ id, className = "size-6" }: { id: ChatProviderId; className?: string }) {
+  switch (id) {
+    case "openai":
+      return <SiOpenai className={`${className} text-[#10A37F]`} aria-hidden />;
+    case "groq":
+      return <GroqBrandMark className={`${className} text-[#f55036]`} />;
+    case "openrouter":
+      return <OpenRouterBrandMark className={`${className} text-[#6366f1]`} />;
+    case "huggingface":
+      return <SiHuggingface className={`${className} text-[#ffd21e]`} aria-hidden />;
+    case "nvidia":
+      return <SiNvidia className={`${className} text-[#76b900]`} aria-hidden />;
+    default:
+      return null;
+  }
+}
+
 type SettingsConfigPayload = {
   model_provider: string;
   default_chat_model: string;
   default_embed_model: string;
   openai_api_key_configured: boolean;
   openai_api_key_last4: string | null;
+  groq_api_key_configured: boolean;
+  groq_api_key_last4: string | null;
+  openrouter_api_key_configured: boolean;
+  openrouter_api_key_last4: string | null;
+  huggingface_api_key_configured: boolean;
+  huggingface_api_key_last4: string | null;
+  nvidia_api_key_configured: boolean;
+  nvidia_api_key_last4: string | null;
+  groq_openai_base_url: string;
+  openrouter_openai_base_url: string;
+  huggingface_openai_base_url: string;
+  nvidia_openai_base_url: string;
+  openai_chat_base_url: string;
+  qdrant_url: string;
+  qdrant_collection: string;
+  ingest_chunk_size: number;
+  ingest_chunk_overlap: number;
   model_provider_options: string[];
+  chat_model_options: string[];
   openai_chat_model_options: string[];
+  groq_chat_model_options: string[];
+  openrouter_chat_model_options: string[];
+  huggingface_chat_model_options: string[];
+  nvidia_chat_model_options: string[];
   openai_embed_model_options: string[];
+  chat_model_aliases: ChatModelAliasRow[];
+  smtp: {
+    host: string;
+    port: number;
+    username: string;
+    from_email: string;
+    use_tls: boolean;
+    password_configured: boolean;
+    password_last4: string | null;
+  };
 };
 
-function mergeOptionList(catalog: string[], current: string): string[] {
-  const t = current.trim();
-  if (!t || catalog.includes(t)) return catalog;
-  return [t, ...catalog];
+function providerLabel(p: string): string {
+  const x = p.trim().toLowerCase();
+  if (x === "openai") return "OpenAI";
+  if (x === "groq") return "Groq";
+  if (x === "openrouter") return "OpenRouter";
+  if (x === "huggingface") return "Hugging Face";
+  if (x === "nvidia") return "NVIDIA NIM";
+  return p;
 }
 
-function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | null) => void }) {
+function catalogArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const t = x.trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+function chatCatalogForProvider(provider: string, c: SettingsConfigPayload): string[] {
+  const p = provider.trim().toLowerCase();
+  if (p === "groq") return catalogArray(c.groq_chat_model_options);
+  if (p === "openrouter") return catalogArray(c.openrouter_chat_model_options);
+  if (p === "huggingface") return catalogArray(c.huggingface_chat_model_options);
+  if (p === "nvidia") return catalogArray(c.nvidia_chat_model_options);
+  return catalogArray(c.openai_chat_model_options);
+}
+
+function mergeOptionList(catalog: string[] | null | undefined, current: string): string[] {
+  const base = catalogArray(catalog);
+  const t = current.trim();
+  if (!t || base.includes(t)) return base;
+  return [t, ...base];
+}
+
+type ConfigSection = "api" | "chat_models" | "retrieval" | "email";
+
+function ConfigPanel({
+  section,
+  onNotify,
+}: {
+  section: ConfigSection;
+  onNotify: (m: string | null, e: string | null) => void;
+}) {
   const [configReady, setConfigReady] = useState(false);
+  const [loadedConfig, setLoadedConfig] = useState<SettingsConfigPayload | null>(null);
   const [modelProvider, setModelProvider] = useState("");
   const [chatModel, setChatModel] = useState("");
   const [embedModel, setEmbedModel] = useState("");
-  const [providerOptions, setProviderOptions] = useState<string[]>([]);
-  const [chatModelOptions, setChatModelOptions] = useState<string[]>([]);
+  const [modelKeyEditor, setModelKeyEditor] = useState<ChatProviderId | null>(null);
   const [embedModelOptions, setEmbedModelOptions] = useState<string[]>([]);
-  const [apiKey, setApiKey] = useState("");
-  const [configured, setConfigured] = useState(false);
-  const [last4, setLast4] = useState<string | null>(null);
+  const [openaiChatUrl, setOpenaiChatUrl] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [groqKey, setGroqKey] = useState("");
+  const [openrouterKey, setOpenrouterKey] = useState("");
+  const [hfKey, setHfKey] = useState("");
+  const [nvidiaKey, setNvidiaKey] = useState("");
+  const [groqBaseUrl, setGroqBaseUrl] = useState("");
+  const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState("");
+  const [hfBaseUrl, setHfBaseUrl] = useState("");
+  const [nvidiaBaseUrl, setNvidiaBaseUrl] = useState("");
+  const [openaiConfigured, setOpenaiConfigured] = useState(false);
+  const [openaiLast4, setOpenaiLast4] = useState<string | null>(null);
+  const [groqConfigured, setGroqConfigured] = useState(false);
+  const [groqLast4, setGroqLast4] = useState<string | null>(null);
+  const [openrouterConfigured, setOpenrouterConfigured] = useState(false);
+  const [openrouterLast4, setOpenrouterLast4] = useState<string | null>(null);
+  const [hfConfigured, setHfConfigured] = useState(false);
+  const [hfLast4, setHfLast4] = useState<string | null>(null);
+  const [nvidiaConfigured, setNvidiaConfigured] = useState(false);
+  const [nvidiaLast4, setNvidiaLast4] = useState<string | null>(null);
+  const [qdrantUrl, setQdrantUrl] = useState("");
+  const [qdrantCollection, setQdrantCollection] = useState("");
+  const [chunkSize, setChunkSize] = useState(512);
+  const [chunkOverlap, setChunkOverlap] = useState(64);
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState(587);
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpFrom, setSmtpFrom] = useState("");
+  const [smtpTls, setSmtpTls] = useState(true);
+  const [smtpPassword, setSmtpPassword] = useState("");
+  const [smtpPwConfigured, setSmtpPwConfigured] = useState(false);
+  const [smtpPwLast4, setSmtpPwLast4] = useState<string | null>(null);
+  const [aliasesDraft, setAliasesDraft] = useState<ChatModelAliasRow[]>([]);
+  const [newAliasName, setNewAliasName] = useState("");
+  const [newAliasProvider, setNewAliasProvider] = useState<ChatProviderId>("openai");
+  const [newAliasModelId, setNewAliasModelId] = useState("");
+  const [chatModelsSavedFingerprint, setChatModelsSavedFingerprint] = useState<string | null>(null);
+
+  const effectiveProviderForChat: ChatProviderId = useMemo(
+    () => (isChatProviderId(modelProvider) ? modelProvider : "openai"),
+    [modelProvider],
+  );
+
+  const chatModelSuggestions = useMemo(() => {
+    if (!loadedConfig) return [];
+    return mergeOptionList(chatCatalogForProvider(effectiveProviderForChat, loadedConfig), chatModel);
+  }, [loadedConfig, effectiveProviderForChat, chatModel]);
+
+  function applyConfigPayload(c: SettingsConfigPayload) {
+    setLoadedConfig(c);
+    setEmbedModel(safeStr(c.default_embed_model));
+    setOpenaiConfigured(c.openai_api_key_configured);
+    setOpenaiLast4(c.openai_api_key_last4);
+    setGroqConfigured(c.groq_api_key_configured);
+    setGroqLast4(c.groq_api_key_last4);
+    setOpenrouterConfigured(c.openrouter_api_key_configured);
+    setOpenrouterLast4(c.openrouter_api_key_last4);
+    setHfConfigured(c.huggingface_api_key_configured);
+    setHfLast4(c.huggingface_api_key_last4);
+    setNvidiaConfigured(c.nvidia_api_key_configured);
+    setNvidiaLast4(c.nvidia_api_key_last4);
+    setOpenaiChatUrl(safeStr(c.openai_chat_base_url));
+    setGroqBaseUrl(safeStr(c.groq_openai_base_url));
+    setOpenrouterBaseUrl(safeStr(c.openrouter_openai_base_url));
+    setHfBaseUrl(safeStr(c.huggingface_openai_base_url));
+    setNvidiaBaseUrl(safeStr(c.nvidia_openai_base_url));
+    setQdrantUrl(safeStr(c.qdrant_url));
+    setQdrantCollection(safeStr(c.qdrant_collection));
+    setChunkSize(c.ingest_chunk_size);
+    setChunkOverlap(c.ingest_chunk_overlap);
+    setSmtpHost(safeStr(c.smtp.host));
+    setSmtpPort(c.smtp.port);
+    setSmtpUser(safeStr(c.smtp.username));
+    setSmtpFrom(safeStr(c.smtp.from_email));
+    setSmtpTls(c.smtp.use_tls);
+    setSmtpPwConfigured(c.smtp.password_configured);
+    setSmtpPwLast4(c.smtp.password_last4);
+    setAliasesDraft(
+      (c.chat_model_aliases ?? []).map((a) => ({
+        alias: safeStr(a.alias),
+        provider: safeStr(a.provider),
+        model_id: safeStr(a.model_id),
+      })),
+    );
+    const normProv = adminUiChatProvider(c);
+    setModelProvider(normProv);
+    setChatModel(safeStr(c.default_chat_model));
+    setEmbedModelOptions(mergeOptionList(c.openai_embed_model_options, safeStr(c.default_embed_model)));
+    setChatModelsSavedFingerprint(
+      chatModelSettingsFingerprint(
+        normProv,
+        safeStr(c.default_chat_model),
+        (c.chat_model_aliases ?? []).map((a) => ({
+          alias: safeStr(a.alias),
+          provider: safeStr(a.provider),
+          model_id: safeStr(a.model_id),
+        })),
+      ),
+    );
+  }
 
   useEffect(() => {
     void (async () => {
@@ -299,14 +549,7 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
       setConfigReady(false);
       try {
         const c = await fetchJson<SettingsConfigPayload>(`${API_BASE_URL}/api/settings/config`);
-        setModelProvider(c.model_provider);
-        setChatModel(c.default_chat_model);
-        setEmbedModel(c.default_embed_model);
-        setConfigured(c.openai_api_key_configured);
-        setLast4(c.openai_api_key_last4);
-        setProviderOptions(mergeOptionList(c.model_provider_options, c.model_provider));
-        setChatModelOptions(mergeOptionList(c.openai_chat_model_options, c.default_chat_model));
-        setEmbedModelOptions(mergeOptionList(c.openai_embed_model_options, c.default_embed_model));
+        applyConfigPayload(c);
         setConfigReady(true);
       } catch (err) {
         onNotify(null, err instanceof Error ? err.message : "Failed to load config");
@@ -315,151 +558,796 @@ function ConfigPanel({ onNotify }: { onNotify: (m: string | null, e: string | nu
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load
   }, []);
 
-  async function save() {
+  async function reloadConfig() {
+    const c = await fetchJson<SettingsConfigPayload>(`${API_BASE_URL}/api/settings/config`);
+    applyConfigPayload(c);
+  }
+
+  async function saveApiSettings() {
     onNotify(null, null);
     try {
       await fetchJson(`${API_BASE_URL}/api/settings/config`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model_provider: modelProvider || undefined,
-          default_chat_model: chatModel || undefined,
-          default_embed_model: embedModel || undefined,
-          openai_api_key: apiKey.trim() || undefined,
+          openai_api_key: trimInput(openaiKey) || undefined,
+          groq_api_key: trimInput(groqKey) || undefined,
+          openrouter_api_key: trimInput(openrouterKey) || undefined,
+          huggingface_api_key: trimInput(hfKey) || undefined,
+          nvidia_api_key: trimInput(nvidiaKey) || undefined,
+          openai_chat_base_url: trimInput(openaiChatUrl),
+          groq_openai_base_url: trimInput(groqBaseUrl),
+          openrouter_openai_base_url: trimInput(openrouterBaseUrl),
+          huggingface_openai_base_url: trimInput(hfBaseUrl),
+          nvidia_openai_base_url: trimInput(nvidiaBaseUrl),
         }),
       });
-      setApiKey("");
-      onNotify("Configuration saved.", null);
-      const c = await fetchJson<SettingsConfigPayload>(`${API_BASE_URL}/api/settings/config`);
-      setModelProvider(c.model_provider);
-      setChatModel(c.default_chat_model);
-      setEmbedModel(c.default_embed_model);
-      setConfigured(c.openai_api_key_configured);
-      setLast4(c.openai_api_key_last4);
-      setProviderOptions(mergeOptionList(c.model_provider_options, c.model_provider));
-      setChatModelOptions(mergeOptionList(c.openai_chat_model_options, c.default_chat_model));
-      setEmbedModelOptions(mergeOptionList(c.openai_embed_model_options, c.default_embed_model));
+      setOpenaiKey("");
+      setGroqKey("");
+      setOpenrouterKey("");
+      setHfKey("");
+      setNvidiaKey("");
+      setModelKeyEditor(null);
+      onNotify("API & endpoints saved.", null);
+      await reloadConfig();
     } catch (err) {
       onNotify(null, err instanceof Error ? err.message : "Save failed");
     }
   }
 
-  if (!configReady) {
+  const chatModelsFingerprintCurrent = useMemo(
+    () => chatModelSettingsFingerprint(effectiveProviderForChat, chatModel, aliasesDraft),
+    [effectiveProviderForChat, chatModel, aliasesDraft],
+  );
+
+  const isChatModelsDirty =
+    section === "chat_models" &&
+    configReady &&
+    chatModelsSavedFingerprint !== null &&
+    chatModelsFingerprintCurrent !== chatModelsSavedFingerprint;
+
+  function discardChatModelDraft() {
+    if (!loadedConfig) return;
+    const c = loadedConfig;
+    setAliasesDraft(
+      (c.chat_model_aliases ?? []).map((a) => ({
+        alias: safeStr(a.alias),
+        provider: safeStr(a.provider),
+        model_id: safeStr(a.model_id),
+      })),
+    );
+    setModelProvider(adminUiChatProvider(c));
+    setChatModel(safeStr(c.default_chat_model));
+    setChatModelsSavedFingerprint(
+      chatModelSettingsFingerprint(
+        adminUiChatProvider(c),
+        safeStr(c.default_chat_model),
+        (c.chat_model_aliases ?? []).map((a) => ({
+          alias: safeStr(a.alias),
+          provider: safeStr(a.provider),
+          model_id: safeStr(a.model_id),
+        })),
+      ),
+    );
+  }
+
+  async function saveChatSettings() {
+    onNotify(null, null);
+    try {
+      const dm = trimInput(chatModel);
+      if (!dm) {
+        onNotify(null, "Choose a default chat model or enter a custom id.");
+        return;
+      }
+      const updated = await fetchJson<SettingsConfigPayload>(`${API_BASE_URL}/api/settings/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildChatModelSettingsPatchBody({
+            provider: effectiveProviderForChat,
+            defaultModelId: dm,
+            aliases: aliasesDraft,
+          }),
+        ),
+      });
+      applyConfigPayload(updated);
+      onNotify("Chat models saved.", null);
+    } catch (err) {
+      onNotify(null, err instanceof Error ? err.message : "Save failed");
+    }
+  }
+
+  async function saveRetrievalTab() {
+    onNotify(null, null);
+    try {
+      await fetchJson(`${API_BASE_URL}/api/settings/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          default_embed_model: trimInput(embedModel) || undefined,
+          qdrant_url: trimInput(qdrantUrl) || undefined,
+          qdrant_collection: trimInput(qdrantCollection) || undefined,
+          ingest_chunk_size: chunkSize,
+          ingest_chunk_overlap: chunkOverlap,
+        }),
+      });
+      onNotify("Embeddings & Qdrant saved.", null);
+      await reloadConfig();
+    } catch (err) {
+      onNotify(null, err instanceof Error ? err.message : "Save failed");
+    }
+  }
+
+  async function saveSmtp() {
+    onNotify(null, null);
+    try {
+      await fetchJson(`${API_BASE_URL}/api/settings/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smtp: {
+            host: trimInput(smtpHost) || undefined,
+            port: smtpPort,
+            username: trimInput(smtpUser) || undefined,
+            from_email: trimInput(smtpFrom) || undefined,
+            use_tls: smtpTls,
+            password: trimInput(smtpPassword) || undefined,
+          },
+        }),
+      });
+      setSmtpPassword("");
+      onNotify("SMTP settings saved.", null);
+      await reloadConfig();
+    } catch (err) {
+      onNotify(null, err instanceof Error ? err.message : "Save failed");
+    }
+  }
+
+  if (!configReady || !loadedConfig) {
+    const loadingTitle =
+      section === "api"
+        ? "API & Endpoints"
+        : section === "chat_models"
+          ? "Chat models"
+          : section === "retrieval"
+            ? "Embeddings & Qdrant"
+            : "Email (SMTP)";
     return (
-      <SectionCard title="API credentials & defaults">
-        <p className="text-secondary text-sm">Loading configuration…</p>
+      <SectionCard title={loadingTitle}>
+        <p className="text-secondary text-sm">Loading…</p>
+      </SectionCard>
+    );
+  }
+
+  function clearDraftForProvider(pid: ChatProviderId) {
+    const cfg = loadedConfig;
+    switch (pid) {
+      case "openai":
+        setOpenaiKey("");
+        if (cfg) setOpenaiChatUrl(safeStr(cfg.openai_chat_base_url));
+        return;
+      case "groq":
+        setGroqKey("");
+        if (cfg) setGroqBaseUrl(cfg.groq_openai_base_url);
+        return;
+      case "openrouter":
+        setOpenrouterKey("");
+        if (cfg) setOpenrouterBaseUrl(cfg.openrouter_openai_base_url);
+        return;
+      case "huggingface":
+        setHfKey("");
+        if (cfg) setHfBaseUrl(cfg.huggingface_openai_base_url);
+        return;
+      case "nvidia":
+        setNvidiaKey("");
+        if (cfg) setNvidiaBaseUrl(cfg.nvidia_openai_base_url);
+        return;
+    }
+  }
+
+  function providerKeyRow(pid: ChatProviderId): { configured: boolean; last4: string | null } {
+    switch (pid) {
+      case "openai":
+        return { configured: openaiConfigured, last4: openaiLast4 };
+      case "groq":
+        return { configured: groqConfigured, last4: groqLast4 };
+      case "openrouter":
+        return { configured: openrouterConfigured, last4: openrouterLast4 };
+      case "huggingface":
+        return { configured: hfConfigured, last4: hfLast4 };
+      case "nvidia":
+        return { configured: nvidiaConfigured, last4: nvidiaLast4 };
+    }
+  }
+
+  if (section === "api") {
+    return (
+      <SectionCard title="API & Endpoints">
+        <div className="space-y-3">
+          {CHAT_PROVIDERS.map((pid) => {
+            const { configured, last4 } = providerKeyRow(pid);
+            const editing = modelKeyEditor === pid;
+            return (
+              <div key={pid} className="rounded-2xl border border-[var(--border)] p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 gap-3">
+                    <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_55%,transparent)]">
+                      <ProviderBrandMark id={pid} className="size-6" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{providerLabel(pid)}</p>
+                      <p className="text-secondary mt-1 text-sm">
+                        API key:{" "}
+                        {configured ? (
+                          <>
+                            <span className="status-success font-medium">Set</span>
+                            {last4 ? (
+                              <>
+                                {" "}
+                                · last 4: <span className="font-mono text-[var(--text-primary)]">{last4}</span>
+                              </>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="status-warning font-medium">Not set</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editing) {
+                          setModelKeyEditor(null);
+                          clearDraftForProvider(pid);
+                        } else {
+                          setModelKeyEditor(pid);
+                        }
+                      }}
+                      className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
+                    >
+                      {editing ? "Cancel" : "Update API key"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearDraftForProvider(pid)}
+                      className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)] hover:text-[var(--text-primary)]"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+                {editing ? (
+                  <div className="mt-4 space-y-3 border-t border-[var(--border)] pt-4">
+                    <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                      <span className="text-secondary font-medium">New API key</span>
+                      {pid === "openai" ? (
+                        <input
+                          type="password"
+                          className="brand-input rounded-xl px-4 py-2.5"
+                          value={openaiKey}
+                          onChange={(e) => setOpenaiKey(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      ) : null}
+                      {pid === "openai" ? (
+                        <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                          <span className="text-secondary font-medium">API base URL (optional)</span>
+                          <input
+                            className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                            value={openaiChatUrl}
+                            onChange={(e) => setOpenaiChatUrl(e.target.value)}
+                            placeholder="https://api.openai.com/v1"
+                            spellCheck={false}
+                          />
+                          <span className="text-muted text-xs leading-snug">
+                            Leave blank to use the default OpenAI endpoint. Set for Azure OpenAI or other OpenAI-compatible
+                            gateways.
+                          </span>
+                        </label>
+                      ) : null}
+                      {pid === "groq" ? (
+                        <input
+                          type="password"
+                          className="brand-input rounded-xl px-4 py-2.5"
+                          value={groqKey}
+                          onChange={(e) => setGroqKey(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      ) : null}
+                      {pid === "groq" ? (
+                        <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                          <span className="text-secondary font-medium">OpenAI-compatible API base URL</span>
+                          <input
+                            className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                            value={groqBaseUrl}
+                            onChange={(e) => setGroqBaseUrl(e.target.value)}
+                            spellCheck={false}
+                          />
+                        </label>
+                      ) : null}
+                      {pid === "openrouter" ? (
+                        <input
+                          type="password"
+                          className="brand-input rounded-xl px-4 py-2.5"
+                          value={openrouterKey}
+                          onChange={(e) => setOpenrouterKey(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      ) : null}
+                      {pid === "openrouter" ? (
+                        <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                          <span className="text-secondary font-medium">OpenAI-compatible API base URL</span>
+                          <input
+                            className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                            value={openrouterBaseUrl}
+                            onChange={(e) => setOpenrouterBaseUrl(e.target.value)}
+                            spellCheck={false}
+                          />
+                        </label>
+                      ) : null}
+                      {pid === "huggingface" ? (
+                        <input
+                          type="password"
+                          className="brand-input rounded-xl px-4 py-2.5"
+                          value={hfKey}
+                          onChange={(e) => setHfKey(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      ) : null}
+                      {pid === "nvidia" ? (
+                        <input
+                          type="password"
+                          className="brand-input rounded-xl px-4 py-2.5"
+                          value={nvidiaKey}
+                          onChange={(e) => setNvidiaKey(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      ) : null}
+                    </label>
+                    {pid === "huggingface" ? (
+                      <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                        <span className="text-secondary font-medium">OpenAI-compatible base URL</span>
+                        <input
+                          className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                          value={hfBaseUrl}
+                          onChange={(e) => setHfBaseUrl(e.target.value)}
+                          spellCheck={false}
+                        />
+                      </label>
+                    ) : null}
+                    {pid === "nvidia" ? (
+                      <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                        <span className="text-secondary font-medium">OpenAI-compatible base URL</span>
+                        <input
+                          className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                          value={nvidiaBaseUrl}
+                          onChange={(e) => setNvidiaBaseUrl(e.target.value)}
+                          spellCheck={false}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
+          <button type="button" onClick={() => void saveApiSettings()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
+            Save
+          </button>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (section === "chat_models") {
+    const selectProviderValue: ChatProviderId = effectiveProviderForChat;
+    const catalogIds = chatModelSuggestions;
+    const aliasSlugSet = new Set(aliasesDraft.map((a) => trimInput(a.alias)).filter(Boolean));
+    const cmTrim = trimInput(chatModel);
+    const inCatalog = catalogIds.includes(cmTrim);
+    const isAliasDefault = aliasSlugSet.has(cmTrim);
+    const selectModelValue = inCatalog || isAliasDefault ? chatModel : "__custom__";
+    const aliasRowForDefault = isAliasDefault ? aliasesDraft.find((a) => a.alias === cmTrim) : undefined;
+    const catalogOptgroupLabel = `Suggested models (${providerLabel(selectProviderValue)})`;
+    const defaultChatSummary = aliasRowForDefault
+      ? `After save: default is alias “${aliasRowForDefault.alias}” → ${providerLabel(aliasRowForDefault.provider)} · ${aliasRowForDefault.model_id}.`
+      : cmTrim
+        ? `After save: default is ${providerLabel(selectProviderValue)} with model id ${cmTrim}.`
+        : "Choose a suggested model, an alias, or enter a custom model id, then save.";
+
+    return (
+      <div className="space-y-6">
+        {isChatModelsDirty ? (
+          <div
+            role="status"
+            className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-sm font-medium text-[var(--foreground)]">You have unsaved chat model changes.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void saveChatSettings()}
+                className="brand-pill-active rounded-xl px-5 py-2 text-sm font-medium"
+              >
+                Save changes
+              </button>
+              <button
+                type="button"
+                onClick={discardChatModelDraft}
+                className="rounded-xl border border-[var(--border)] px-5 py-2 text-sm font-medium hover:bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <p className="text-secondary max-w-3xl text-sm leading-relaxed">
+          Configure the provider whose keys live under API &amp; Endpoints, then set the default chat model id (suggested list,
+          optional alias from the table below, or any id under Other). Save when done so the API and workers read the same values
+          from the database.
+        </p>
+
+        <SectionCard
+          title="Default chat model"
+          description="Stored as model_provider plus default_chat_model (or an alias slug that resolves server-side)."
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+              <span className="text-secondary font-medium">Chat provider</span>
+              <select
+                className="brand-input rounded-xl px-4 py-2.5"
+                value={selectProviderValue}
+                onChange={(e) => {
+                  const next = e.target.value as ChatProviderId;
+                  setModelProvider(next);
+                  const cat = chatCatalogForProvider(next, loadedConfig);
+                  const cur = trimInput(chatModel);
+                  if (!cur || !cat.includes(cur)) {
+                    setChatModel(cat[0] ?? "");
+                  }
+                }}
+                aria-label="Chat provider"
+              >
+                {CHAT_PROVIDERS.map((p) => (
+                  <option key={p} value={p}>
+                    {providerLabel(p)}
+                  </option>
+                ))}
+              </select>
+              <span className="text-muted text-xs leading-snug">API keys and base URLs are on the API &amp; Endpoints tab.</span>
+            </label>
+            <div className="flex min-w-0 flex-col gap-1.5 text-sm">
+              <span className="text-secondary font-medium">Default (saved model id)</span>
+              <select
+                className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+                value={selectModelValue}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__custom__") {
+                    setChatModel("");
+                    return;
+                  }
+                  const hit = aliasesDraft.find((a) => a.alias === v);
+                  if (hit && isChatProviderId(hit.provider.trim().toLowerCase())) {
+                    setModelProvider(hit.provider.trim().toLowerCase() as ChatProviderId);
+                    setChatModel(hit.alias);
+                    return;
+                  }
+                  setChatModel(v);
+                }}
+                aria-label="Default chat model id"
+              >
+                <optgroup label={catalogOptgroupLabel}>
+                  {catalogIds.length > 0 ? (
+                    catalogIds.map((m, i) => (
+                      <option key={`cat-${selectProviderValue}-${i}-${m}`} value={m}>
+                        {m}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="__catalog_empty__" disabled>
+                      No curated list — use “Other” or an alias below
+                    </option>
+                  )}
+                </optgroup>
+                {aliasesDraft.length > 0 ? (
+                  <optgroup label="Your aliases (short names → real model id)">
+                    {aliasesDraft.map((a, i) => (
+                      <option key={`alias-${i}-${a.alias}`} value={a.alias}>
+                        {a.alias} → {a.model_id}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                <option value="__custom__">Other — type any model id</option>
+              </select>
+              {selectModelValue === "__custom__" ? (
+                <input
+                  className="brand-input mt-2 rounded-xl px-4 py-2.5 font-mono text-xs"
+                  value={chatModel}
+                  onChange={(e) => setChatModel(e.target.value)}
+                  spellCheck={false}
+                  placeholder="e.g. gpt-4.1 or a provider-specific id"
+                  aria-label="Custom chat model id"
+                />
+              ) : null}
+            </div>
+          </div>
+          <p className="text-secondary mt-4 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_40%,transparent)] px-3 py-2.5 text-xs leading-relaxed">
+            {defaultChatSummary}
+          </p>
+        </SectionCard>
+
+        <SectionCard
+          title="Model aliases (optional)"
+          description="Each row maps a short name to provider + model id. Choosing that name as the default stores the alias; the API resolves it to the real model id on each request."
+        >
+          <div className="mb-4 overflow-x-auto rounded-xl border border-[var(--border)]">
+            <table className="w-full min-w-[32rem] text-left text-sm">
+              <thead className="border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_45%,transparent)] text-secondary text-xs font-semibold uppercase tracking-wide">
+                <tr>
+                  <th className="px-3 py-2">Alias</th>
+                  <th className="px-3 py-2">Provider</th>
+                  <th className="px-3 py-2">Model id</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {aliasesDraft.map((row, idx) => (
+                  <tr key={`alias-row-${idx}-${row.alias}`} className="border-b border-[var(--border)] last:border-0">
+                    <td className="px-3 py-2 font-mono text-xs">{row.alias}</td>
+                    <td className="px-3 py-2">{providerLabel(row.provider)}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{row.model_id}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-[var(--primary)] hover:underline"
+                        onClick={() => {
+                          if (isChatProviderId(row.provider.trim().toLowerCase())) {
+                            setModelProvider(row.provider.trim().toLowerCase() as ChatProviderId);
+                          }
+                          setChatModel(row.alias);
+                        }}
+                      >
+                        Use as default
+                      </button>
+                      <span className="text-muted mx-2">·</span>
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-secondary hover:text-[var(--error)]"
+                        onClick={() => setAliasesDraft((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--elevated)_35%,transparent)] p-4 sm:flex-row sm:flex-wrap sm:items-end">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-secondary">
+              Alias
+              <input
+                className="brand-input rounded-lg px-3 py-2 font-mono text-sm"
+                value={newAliasName}
+                onChange={(e) => setNewAliasName(e.target.value)}
+                placeholder="e.g. team-fast"
+              />
+            </label>
+            <label className="flex min-w-[8rem] flex-col gap-1 text-xs font-medium text-secondary">
+              Provider
+              <select
+                className="brand-input rounded-lg px-3 py-2 text-sm"
+                value={newAliasProvider}
+                onChange={(e) => setNewAliasProvider(e.target.value as ChatProviderId)}
+              >
+                {CHAT_PROVIDERS.map((p) => (
+                  <option key={`new-alias-prov-${p}`} value={p}>
+                    {providerLabel(p)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="min-w-0 flex-[2] flex-col gap-1 text-xs font-medium text-secondary sm:flex-[2]">
+              Model id
+              <input
+                className="brand-input rounded-lg px-3 py-2 font-mono text-sm"
+                value={newAliasModelId}
+                onChange={(e) => setNewAliasModelId(e.target.value)}
+                placeholder="Provider-specific model id"
+              />
+            </label>
+            <button
+              type="button"
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:bg-[color-mix(in_srgb,var(--elevated)_70%,transparent)]"
+              onClick={() => {
+                const al = newAliasName.trim();
+                const mid = newAliasModelId.trim();
+                if (!al || !mid) return;
+                if (aliasesDraft.some((x) => x.alias.toLowerCase() === al.toLowerCase())) return;
+                setAliasesDraft((prev) => [...prev, { alias: al, provider: newAliasProvider, model_id: mid }]);
+                setNewAliasName("");
+                setNewAliasModelId("");
+              }}
+            >
+              Add alias
+            </button>
+          </div>
+        </SectionCard>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <button
+            type="button"
+            disabled={!isChatModelsDirty}
+            onClick={() => void saveChatSettings()}
+            className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Save chat settings
+          </button>
+          <p className="text-secondary max-w-xl text-xs leading-relaxed">
+            Values are written to the database only when you save. Use Discard in the banner above to reload the last saved
+            configuration from the server.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (section === "retrieval") {
+    return (
+      <SectionCard
+        title="Embeddings & Qdrant"
+        description="Embedding model defaults, chunking for ingestion, and Qdrant connection used by the API and Celery workers."
+      >
+        <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
+          <div className="flex gap-3 sm:items-start lg:col-span-2">
+            <OpenAIBrandMark className="mt-0.5" />
+            <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+              <span className="text-secondary font-medium">Embedding model</span>
+              <select
+                className="brand-input rounded-xl px-4 py-2.5"
+                value={embedModel}
+                onChange={(e) => setEmbedModel(e.target.value)}
+                aria-label="Default embedding model"
+              >
+                {embedModelOptions.map((m, i) => (
+                  <option key={`embed-opt-${i}-${m}`} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Chunk size</span>
+            <input
+              type="number"
+              className="brand-input rounded-xl px-4 py-2.5"
+              value={chunkSize}
+              min={128}
+              max={4096}
+              onChange={(e) => setChunkSize(parseInt(e.target.value, 10) || 0)}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Chunk overlap</span>
+            <input
+              type="number"
+              className="brand-input rounded-xl px-4 py-2.5"
+              value={chunkOverlap}
+              min={0}
+              max={4096}
+              onChange={(e) => setChunkOverlap(parseInt(e.target.value, 10) || 0)}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
+            <span className="text-secondary font-medium">Qdrant URL</span>
+            <input
+              className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+              value={qdrantUrl}
+              onChange={(e) => setQdrantUrl(e.target.value)}
+              placeholder="https://qdrant.example.com:6333"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm lg:col-span-2">
+            <span className="text-secondary font-medium">Collection name</span>
+            <input
+              className="brand-input rounded-xl px-4 py-2.5 font-mono text-xs"
+              value={qdrantCollection}
+              onChange={(e) => setQdrantCollection(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
+          <button type="button" onClick={() => void saveRetrievalTab()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
+            Save
+          </button>
+        </div>
       </SectionCard>
     );
   }
 
   return (
-    <SectionCard title="API credentials & defaults">
-      <p className="text-muted mb-5 max-w-2xl text-[13px] leading-snug">
-        Values saved here are stored in the database and take priority. If a value is not in the database, the API falls back to the matching
-        environment variable (for example <code className="font-mono text-[11px]">OPENAI_MODEL</code>,{" "}
-        <code className="font-mono text-[11px]">MODEL_PROVIDER</code>, or <code className="font-mono text-[11px]">OPENAI_API_KEY</code>).
-      </p>
-
-      <div className="mb-5 flex flex-wrap items-center gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--primary)_22%,var(--border))] bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] px-3 py-2.5 text-sm">
-        <FiKey className="size-4 shrink-0 text-[var(--primary)]" aria-hidden />
-        <span className="text-secondary">API key</span>
-        <span className={configured ? "status-success font-medium" : "status-warning font-medium"}>
-          {configured ? `configured (${last4 ?? "••••"})` : "not set"}
-        </span>
-      </div>
-
-      <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
-        <div className="flex gap-3 sm:items-start">
-          <OpenAIBrandMark className="mt-0.5" />
-          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
-            <span className="text-secondary font-medium">Model provider</span>
-            <select
-              className="brand-input rounded-xl px-4 py-2.5"
-              value={modelProvider}
-              onChange={(e) => setModelProvider(e.target.value)}
-              aria-label="Model provider"
-            >
-              {providerOptions.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="flex gap-3 sm:items-start">
-          <OpenAIBrandMark className="mt-0.5" />
-          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
-            <span className="text-secondary font-medium">Chat model</span>
-            <select
-              className="brand-input rounded-xl px-4 py-2.5"
-              value={chatModel}
-              onChange={(e) => setChatModel(e.target.value)}
-              aria-label="Default chat model"
-            >
-              {chatModelOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="flex gap-3 sm:items-start lg:col-span-2">
-          <OpenAIBrandMark className="mt-0.5" />
-          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
-            <span className="text-secondary font-medium">Embedding model</span>
-            <select
-              className="brand-input rounded-xl px-4 py-2.5"
-              value={embedModel}
-              onChange={(e) => setEmbedModel(e.target.value)}
-              aria-label="Default embedding model"
-            >
-              {embedModelOptions.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="flex gap-3 sm:items-start lg:col-span-2">
-          <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--primary)_30%,transparent)]">
-            <FiKey className="size-4 text-[var(--primary)]" aria-hidden />
+      <SectionCard
+        title="Email (SMTP)"
+        description="Use Google Workspace or Gmail SMTP (App Password) for outbound mail. Required for self-service password reset links."
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-xs">
+          <FiMail className="size-4 text-[var(--primary)]" aria-hidden />
+          <span className="text-secondary">SMTP password</span>
+          <span className={smtpPwConfigured ? "status-success font-medium" : "status-warning font-medium"}>
+            {smtpPwConfigured ? `set (${smtpPwLast4 ?? "••••"})` : "not set"}
           </span>
-          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
-            <span className="text-secondary font-medium">OpenAI API key</span>
+        </div>
+        <p className="text-muted mb-4 max-w-2xl text-[12px] leading-snug">
+          Typical Google SMTP: host <code className="font-mono text-[11px]">smtp.gmail.com</code>, port <code className="font-mono text-[11px]">587</code>, TLS on, username your full address, App Password in the password field.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+            <span className="text-secondary font-medium">SMTP host</span>
+            <input className="brand-input rounded-xl px-4 py-2.5" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Port</span>
+            <input
+              type="number"
+              className="brand-input rounded-xl px-4 py-2.5"
+              value={smtpPort}
+              min={1}
+              max={65535}
+              onChange={(e) => setSmtpPort(parseInt(e.target.value, 10) || 587)}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Use TLS (STARTTLS)</span>
+            <select className="brand-input rounded-xl px-4 py-2.5" value={smtpTls ? "yes" : "no"} onChange={(e) => setSmtpTls(e.target.value === "yes")}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+            <span className="text-secondary font-medium">SMTP username</span>
+            <input className="brand-input rounded-xl px-4 py-2.5" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} autoComplete="off" />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+            <span className="text-secondary font-medium">From address</span>
+            <input className="brand-input rounded-xl px-4 py-2.5" value={smtpFrom} onChange={(e) => setSmtpFrom(e.target.value)} type="email" />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+            <span className="text-secondary font-medium">SMTP password</span>
             <input
               type="password"
               className="brand-input rounded-xl px-4 py-2.5"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              value={smtpPassword}
+              onChange={(e) => setSmtpPassword(e.target.value)}
               autoComplete="new-password"
-              placeholder="sk-…"
             />
-            <p className="text-muted max-w-xl text-[12px] leading-snug">
-              Stored in the database for chat, retrieval, and ingestion. Paste a full key and save. If you use env vars only, restart the API
-              and worker after changes.
-            </p>
           </label>
         </div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
-        <button type="button" onClick={() => void save()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
-          Save
-        </button>
-      </div>
-    </SectionCard>
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
+          <button type="button" onClick={() => void saveSmtp()} className="brand-pill-active rounded-xl px-6 py-2.5 text-sm font-medium">
+            Save
+          </button>
+        </div>
+      </SectionCard>
   );
 }
 
 type UserRow = {
   id: string;
   email: string;
+  first_name: string | null;
+  last_name: string | null;
   role: string;
   is_active: boolean;
   monthly_request_limit: number | null;
@@ -470,6 +1358,8 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
   const [users, setUsers] = useState<UserRow[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [role, setRole] = useState("normal");
   const [newUserLimit, setNewUserLimit] = useState("");
 
@@ -495,12 +1385,16 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
         body: JSON.stringify({
           email,
           password,
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
           role,
           monthly_request_limit: newUserLimit.trim() === "" ? null : parseInt(newUserLimit, 10),
         }),
       });
       setEmail("");
       setPassword("");
+      setFirstName("");
+      setLastName("");
       setNewUserLimit("");
       onNotify("User created.", null);
       await load();
@@ -536,6 +1430,24 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
               placeholder="name@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-secondary">First name</span>
+            <input
+              className="brand-input rounded-2xl px-4 py-2.5"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-secondary">Last name</span>
+            <input
+              className="brand-input rounded-2xl px-4 py-2.5"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
               autoComplete="off"
             />
           </label>
@@ -582,10 +1494,11 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
 
       <SectionCard title="All users">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
               <tr className="text-secondary border-b border-[var(--border)] text-xs uppercase tracking-wide">
                 <th className="pb-3 pr-4 font-semibold">User</th>
+                <th className="pb-3 pr-4 font-semibold">Name</th>
                 <th className="pb-3 pr-4 font-semibold">Role</th>
                 <th className="pb-3 pr-4 font-semibold">Status</th>
                 <th className="pb-3 pr-4 font-semibold">Quota</th>
@@ -598,6 +1511,11 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
                   <td className="py-3 pr-4 align-top">
                     <span className="font-medium">{u.email}</span>
                     <div className="text-muted font-mono mt-1 text-[11px]">{u.id.slice(0, 8)}…</div>
+                  </td>
+                  <td className="py-3 pr-4 align-top text-sm">
+                    <div className="text-secondary">
+                      {[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}
+                    </div>
                   </td>
                   <td className="py-3 pr-4 align-top">
                     <select
@@ -637,6 +1555,35 @@ function UsersPanel({ onNotify }: { onNotify: (m: string | null, e: string | nul
                       >
                         {u.is_active ? "Disable" : "Enable"}
                       </button>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-muted text-[10px] uppercase tracking-wide">New password</span>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <input
+                            type="password"
+                            className="brand-input max-w-[140px] rounded-lg px-2 py-1 text-xs"
+                            placeholder="Min. 8"
+                            id={`pwd-${u.id}`}
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="brand-pill rounded-lg px-2 py-1 text-xs"
+                            onClick={() => {
+                              const el = document.getElementById(`pwd-${u.id}`) as HTMLInputElement | null;
+                              const p = el?.value?.trim() ?? "";
+                              if (p.length < 8) {
+                                onNotify(null, "Password must be at least 8 characters.");
+                                return;
+                              }
+                              void patchUser(u.id, { password: p }).finally(() => {
+                                if (el) el.value = "";
+                              });
+                            }}
+                          >
+                            Set
+                          </button>
+                        </div>
+                      </div>
                       <div className="flex items-center gap-1">
                         <input
                           key={`${u.id}-${String(u.monthly_request_limit)}`}

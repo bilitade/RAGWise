@@ -524,7 +524,6 @@ export default function Chat() {
     <div className="chat-workspace-shell relative flex h-full min-h-0 w-full flex-1 flex-col gap-4 overflow-x-hidden lg:flex-row lg:items-stretch lg:gap-6 lg:overflow-hidden">
       <ChatSidebar
         open={chatSidebarOpen}
-        apiBaseUrl={API_BASE_URL}
         conversations={conversations}
         activeConversationId={activeConversationId}
         onOverlayDismiss={() => setChatSidebarOpen(false)}

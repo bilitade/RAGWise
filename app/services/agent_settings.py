@@ -170,14 +170,54 @@ def build_agent_tools_list(
         make_multi_source_research_tool,
     )
 
+    kb = load_tool_knowledge_base_enabled(db)
+    net = load_tool_internet_enabled(db)
     tools: list = []
-    if load_tool_knowledge_base_enabled(db):
+    if kb:
         tools.append(make_knowledge_base_search_tool(runtime_config))
-    if load_tool_internet_enabled(db):
+    if net:
         tools.append(make_internet_search_tool())
-    if load_tool_knowledge_base_enabled(db) or load_tool_internet_enabled(db):
-        tools.append(make_multi_source_research_tool(runtime_config))
+    if kb or net:
+        tools.append(
+            make_multi_source_research_tool(
+                runtime_config,
+                allow_knowledge_base=kb,
+                allow_web=net,
+            )
+        )
     return tools
+
+
+def build_tool_runtime_constraints(db: Session) -> str:
+    """Align the system prompt with tools actually registered (prevents tool-name hallucination)."""
+    kb = load_tool_knowledge_base_enabled(db)
+    net = load_tool_internet_enabled(db)
+    if kb and net:
+        return ""
+
+    header = "### Available tools (server-enforced)\n\n"
+
+    if not kb and not net:
+        return header + (
+            "You have **no** retrieval or web-search tools in this session (no `knowledge_base_search`, "
+            "`internet_search`, or `multi_source_research`). Do **not** claim you ran any of these tools, "
+            "and do **not** fabricate document names, URLs, tool JSON, or citations. If the user needs "
+            "grounded internal or live-web facts, say clearly that those tools are disabled and answer only "
+            "from general knowledge where appropriate, without invented sources."
+        )
+
+    if kb and not net:
+        return header + (
+            "`internet_search` is **disabled**. You may use `knowledge_base_search` and `multi_source_research` "
+            "only for knowledge-base content. Do **not** claim you searched the public web or fabricate web "
+            "URLs or page titles; cite only real document names that appear in tool output."
+        )
+
+    return header + (
+        "`knowledge_base_search` is **disabled**. You may use `internet_search` and `multi_source_research` "
+        "only for live web content. Do **not** claim you read internal indexed documents or invent "
+        "knowledge-base filenames; cite only real titles/URLs from tool output."
+    )
 
 
 def load_company_display_name(db: Session) -> str:
@@ -240,9 +280,12 @@ def resolve_full_system_prompt(db: Session, *, persona_id: UUID | None = None) -
     """Prefix, core prompt, and optional persona instructions."""
     core = resolve_chat_system_prompt(db)
     prefix = build_dynamic_prefix(db)
+    tool_constraints = build_tool_runtime_constraints(db).strip()
     persona_prompt = _load_persona_prompt(db, persona_id)
 
     blocks = [block for block in (prefix.strip(), core.strip()) if block]
+    if tool_constraints:
+        blocks.append(tool_constraints)
     if persona_prompt:
         blocks.append(f"### Active Persona\n\n{persona_prompt}")
     return "\n\n---\n\n".join(blocks)

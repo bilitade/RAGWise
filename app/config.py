@@ -55,7 +55,15 @@ def get_bool_env(name: str, default: bool = False) -> bool:
 
 load_env()
 
-UPLOAD_DIR = Path(get_env("DOCUMENTS_DIR", str(PROJECT_ROOT / "upload")))
+
+def _env_nonempty(name: str, default: str) -> str:
+    """Treat empty/whitespace env values as unset (so ``KEY=`` in .env does not override defaults)."""
+    raw = get_env(name, default)
+    stripped = (raw or "").strip()
+    return stripped if stripped else default
+
+
+UPLOAD_DIR = Path(_env_nonempty("DOCUMENTS_DIR", str(PROJECT_ROOT / "upload")))
 
 QDRANT_URL = get_env("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = get_env("QDRANT_COLLECTION", "knowledge_base")
@@ -80,7 +88,10 @@ QDRANT_DENSE_DATATYPE = (get_env("QDRANT_DENSE_DATATYPE", "float32") or "float32
 # Dense weight in hybrid fusion; sparse gets 1 - alpha.
 QDRANT_HYBRID_ALPHA = max(0.0, min(1.0, get_float_env("QDRANT_HYBRID_ALPHA", 0.6)))
 
-DOCUMENT_REGISTRY_PATH = DB_DIR / f"{QDRANT_COLLECTION}_documents.json"
+_document_registry_override = (get_env("DOCUMENT_REGISTRY_PATH") or "").strip()
+DOCUMENT_REGISTRY_PATH = (
+    Path(_document_registry_override) if _document_registry_override else DB_DIR / f"{QDRANT_COLLECTION}_documents.json"
+)
 
 REDIS_URL = get_env("REDIS_URL", "redis://localhost:6379/0")
 CELERY_BROKER_URL = get_env("CELERY_BROKER_URL", REDIS_URL)
@@ -98,6 +109,22 @@ try:
 except ValueError:
     OPENAI_EMBED_DIMENSIONS = None
 MODEL_PROVIDER = get_env("MODEL_PROVIDER", "openai")
+
+# OpenAI-compatible chat API roots: env defaults; Admin PATCH persists overrides in app_settings (same pattern for all four).
+GROQ_OPENAI_BASE_URL = (get_env("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1") or "https://api.groq.com/openai/v1").rstrip(
+    "/"
+)
+OPENROUTER_OPENAI_BASE_URL = (
+    get_env("OPENROUTER_OPENAI_BASE_URL", "https://openrouter.ai/api/v1") or "https://openrouter.ai/api/v1"
+).rstrip("/")
+
+# OpenAI-compatible chat base URLs (HF router + NVIDIA NIM cloud); overridable in Admin settings.
+HUGGINGFACE_OPENAI_BASE_URL = (
+    get_env("HUGGINGFACE_OPENAI_BASE_URL", "https://router.huggingface.co/v1") or "https://router.huggingface.co/v1"
+).rstrip("/")
+NVIDIA_OPENAI_BASE_URL = (
+    get_env("NVIDIA_OPENAI_BASE_URL", "https://integrate.api.nvidia.com/v1") or "https://integrate.api.nvidia.com/v1"
+).rstrip("/")
 
 COMPANY_NAME = (get_env("COMPANY_NAME") or "").strip()
 
@@ -118,7 +145,7 @@ DATABASE_URL = get_env(
     "postgresql+psycopg2://rag:rag@localhost:5432/rag_deep_agent",
 )
 JWT_SECRET = get_env("JWT_SECRET", "change-me-in-production-use-long-random-string")
-JWT_ALGORITHM = "HS256"
+JWT_ALGORITHM = (get_env("JWT_ALGORITHM", "HS256") or "HS256").strip()
 JWT_EXPIRE_MINUTES = get_int_env("JWT_EXPIRE_MINUTES", 60 * 24)
 
 SETTINGS_SECRET_KEY = get_env("SETTINGS_SECRET_KEY", "")
@@ -128,13 +155,30 @@ REQUIRE_AUTH = get_env("REQUIRE_AUTH", "false").lower() in ("1", "true", "yes")
 INITIAL_ADMIN_EMAIL = get_env("INITIAL_ADMIN_EMAIL")
 INITIAL_ADMIN_PASSWORD = get_env("INITIAL_ADMIN_PASSWORD")
 
+# Base URL of the web app (for password-reset links in email). No trailing slash.
+PUBLIC_APP_URL = (get_env("PUBLIC_APP_URL", "http://localhost:5173") or "http://localhost:5173").rstrip("/")
+
 CHUNK_SIZE_MIN = get_int_env("CHUNK_SIZE_MIN", 128)
 CHUNK_SIZE_MAX = get_int_env("CHUNK_SIZE_MAX", 4096)
 
-APP_LOG_FILE = get_env("APP_LOG_FILE", str(PROJECT_ROOT / "logs" / "app.log"))
+APP_LOG_FILE = _env_nonempty("APP_LOG_FILE", str(PROJECT_ROOT / "logs" / "app.log"))
 
 LANGCHAIN_TRACING_V2 = get_env("LANGCHAIN_TRACING_V2", "false").lower() in ("1", "true", "yes")
 LANGCHAIN_API_KEY = get_env("LANGCHAIN_API_KEY")
 LANGCHAIN_PROJECT = get_env("LANGCHAIN_PROJECT", "rag-deep-agent")
 LANGCHAIN_ENDPOINT = get_env("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
 LANGSMITH_WORKSPACE_ID = get_env("LANGSMITH_WORKSPACE_ID")
+
+# --- Runtime mode (hardening) ---
+# ``production`` enables strict startup checks (JWT / settings secrets). Anything else = non-production.
+APP_ENV = (get_env("APP_ENV", "development") or "development").strip().lower()
+# Ephemeral chat without a user (burns LLM quota). Off by default; enable only for local demos.
+ALLOW_ANONYMOUS_CHAT = get_bool_env("ALLOW_ANONYMOUS_CHAT", False)
+
+# Per-IP rate limits (slowapi; tune via env for your ingress / user base)
+RATE_LIMIT_DEFAULT_PER_MINUTE = get_int_env("RATE_LIMIT_DEFAULT_PER_MINUTE", 120)
+RATE_LIMIT_LOGIN_PER_MINUTE = get_int_env("RATE_LIMIT_LOGIN_PER_MINUTE", 30)
+RATE_LIMIT_AUTH_PUBLIC_PER_MINUTE = get_int_env("RATE_LIMIT_AUTH_PUBLIC_PER_MINUTE", 12)
+RATE_LIMIT_CHAT_STREAM_PER_MINUTE = get_int_env("RATE_LIMIT_CHAT_STREAM_PER_MINUTE", 40)
+# Bucket for JWT role=admin; set very high so admins are not throttled in normal use.
+RATE_LIMIT_ADMIN_PER_MINUTE = get_int_env("RATE_LIMIT_ADMIN_PER_MINUTE", 999_999)

@@ -22,6 +22,8 @@ def setup_file_logging() -> None:
         root.addHandler(stream_handler)
 
     path = Path(APP_LOG_FILE)
+    if not str(path).strip() or path.is_dir():
+        return
     resolved = str(path.resolve())
     if any(getattr(h, "baseFilename", None) == resolved for h in root.handlers if hasattr(h, "baseFilename")):
         return

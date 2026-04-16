@@ -6,7 +6,6 @@ import argparse
 import json
 
 from app.config import QDRANT_HYBRID_ALPHA
-from app.db.qdrant import QdrantStore
 from app.retrieval.bm25_search import bm25_search
 from app.retrieval.helpers import (
     build_embed_model,
@@ -18,7 +17,7 @@ from app.retrieval.helpers import (
 from app.retrieval.hybrid_search import query_hybrid_weighted
 from app.retrieval.models import ScoreKind, SearchResult
 from app.retrieval.similarity_search import similarity_search
-from app.services.runtime_config import RuntimeModelConfig
+from app.services.runtime_config import RuntimeModelConfig, qdrant_store_from_runtime
 
 __all__ = [
     "ScoreKind",
@@ -39,10 +38,10 @@ def hybrid_search(
     alpha: float | None = None,
     runtime_config: RuntimeModelConfig | None = None,
 ) -> list[SearchResult]:
-    if use_qdrant_hybrid():
+    if use_qdrant_hybrid(runtime_config):
         embed_model = build_embed_model(runtime_config)
         qvec = embed_model.get_query_embedding(query)
-        store = QdrantStore()
+        store = qdrant_store_from_runtime(runtime_config)
         dense_w = QDRANT_HYBRID_ALPHA if alpha is None else max(0.0, min(1.0, float(alpha)))
         points = query_hybrid_weighted(
             store,

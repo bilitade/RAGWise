@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import DOCUMENT_REGISTRY_PATH, UPLOAD_DIR
 from app.db.models import Document as DocumentRow
-from app.ingestion.loader import build_document_id, list_source_files
 
 
 def _utc_now() -> datetime:

@@ -5,15 +5,27 @@ export type UserRole = "normal" | "pro" | "admin";
 export type MeUser = {
     id: string;
     email: string;
+    first_name: string | null;
+    last_name: string | null;
     role: UserRole;
     is_active: boolean;
     monthly_request_limit: number | null;
     requests_this_period: number;
 };
 export type RetrievalMode = "similarity" | "bm25" | "advanced";
-export type AppRoute = "/" | "/documents" | "/chat" | "/settings" | "/login";
+export type AppRoute =
+    | "/"
+    | "/documents"
+    | "/chat"
+    | "/settings"
+    | "/login"
+    | "/forgot-password"
+    | "/reset-password";
 export type SettingsTab =
-    | "config"
+    | "api"
+    | "chat_models"
+    | "retrieval"
+    | "email"
     | "users"
     | "agents"
     | "jobs"

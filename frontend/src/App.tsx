@@ -10,6 +10,8 @@ import Landing from "./pages/Landing";
 import Documents from "./pages/Documents";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 
 export default function App() {
@@ -17,7 +19,7 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => readThemePreference());
   const [route, setRoute] = useState<AppRoute>(getCurrentRoute());
   const [documentsTab, setDocumentsTab] = useState<DocumentsTab>("files");
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("config");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("api");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -134,8 +136,12 @@ export default function App() {
 
             <Landing />
           </div>
-        ) : route === "/login" ? (
-          authLoading ? (
+        ) : route === "/login" || route === "/forgot-password" || route === "/reset-password" ? (
+          route === "/forgot-password" ? (
+            <ForgotPassword />
+          ) : route === "/reset-password" ? (
+            <ResetPassword />
+          ) : authLoading ? (
             <div className="flex min-h-[60vh] flex-1 flex-col items-center justify-center gap-2 px-4">
               <p className="text-secondary text-sm">Loading…</p>
             </div>

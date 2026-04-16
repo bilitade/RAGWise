@@ -59,7 +59,7 @@ def build_agent(
             **runtime_config.chat_openai_kwargs(
                 model=model_name or runtime_config.chat_model,
                 streaming=True,
-            )
+            ),
         )
     else:
         model = ChatOpenAI(

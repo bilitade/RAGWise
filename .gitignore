@@ -11,6 +11,8 @@ wheels/
 
 .env
 upload
+logs/
+*.tsbuildinfo
 frontend/node_modules
 frontend/dist
 .cod

@@ -52,23 +52,33 @@ def _quota_commit(user: User | None, db: Session, route: str) -> None:
     record_usage(db, user_id=user.id, route=route)
 
 
-def _validate_chunk_params(
-    chunk_size: int | None,
-    chunk_overlap: int | None,
-    user: User | None,
-) -> None:
-    from app.core.rbac import user_can_use_advanced_split
-
-    if chunk_size is not None and (chunk_size < CHUNK_SIZE_MIN or chunk_size > CHUNK_SIZE_MAX):
+def _validate_chunk_values(chunk_size: int, chunk_overlap: int) -> None:
+    if chunk_size < CHUNK_SIZE_MIN or chunk_size > CHUNK_SIZE_MAX:
         raise HTTPException(
             status_code=400,
             detail=f"chunk_size must be between {CHUNK_SIZE_MIN} and {CHUNK_SIZE_MAX}",
         )
-    if chunk_overlap is not None and (chunk_overlap < 0 or chunk_overlap > CHUNK_SIZE_MAX):
+    if chunk_overlap < 0 or chunk_overlap > CHUNK_SIZE_MAX:
         raise HTTPException(status_code=400, detail="chunk_overlap out of range")
-    if chunk_size is not None or chunk_overlap is not None:
-        if not user_can_use_advanced_split(user):
-            raise HTTPException(status_code=403, detail="Custom chunk settings require pro or admin role")
+    if chunk_overlap >= chunk_size:
+        raise HTTPException(status_code=400, detail="chunk_overlap must be smaller than chunk_size")
+
+
+def _resolve_ingest_chunks(
+    db: Session,
+    user: User | None,
+    chunk_size: int | None,
+    chunk_overlap: int | None,
+) -> tuple[int, int]:
+    from app.core.rbac import user_can_use_advanced_split
+
+    if (chunk_size is not None or chunk_overlap is not None) and not user_can_use_advanced_split(user):
+        raise HTTPException(status_code=403, detail="Custom chunk settings require pro or admin role")
+    cfg = load_runtime_model_config(db)
+    final_size = chunk_size if chunk_size is not None else cfg.default_chunk_size
+    final_overlap = chunk_overlap if chunk_overlap is not None else cfg.default_chunk_overlap
+    _validate_chunk_values(final_size, final_overlap)
+    return final_size, final_overlap
 
 
 def _default_stage(task_id: str, status: str) -> dict:
@@ -183,15 +193,15 @@ async def upload_and_ingest_document(
     user: User | None = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> DocumentJobResponse:
-    _validate_chunk_params(chunk_size, chunk_overlap, user)
+    eff_size, eff_overlap = _resolve_ingest_chunks(db, user, chunk_size, chunk_overlap)
     _quota_check(user, db)
     document = await save_uploaded_file(db, file)
     runtime_config = load_runtime_model_config(db)
     task = ingest_documents_task.delay(
         input_dir=document.absolute_path,
         recreate_collection=False,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+        chunk_size=eff_size,
+        chunk_overlap=eff_overlap,
         runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
@@ -200,7 +210,7 @@ async def upload_and_ingest_document(
         celery_task_id=task.id,
         job_type=JobType.ingest,
         created_by_user_id=uid,
-        meta={"path": document.absolute_path, "chunk_size": chunk_size, "chunk_overlap": chunk_overlap},
+        meta={"path": document.absolute_path, "chunk_size": eff_size, "chunk_overlap": eff_overlap},
     )
     _quota_commit(user, db, "POST /api/documents/upload-and-ingest")
     return DocumentJobResponse(task_id=task.id, status=task.status, document=document)
@@ -213,14 +223,14 @@ def ingest_all_documents_route(
     db: Session = Depends(get_db),
 ) -> DocumentJobResponse:
     body = body or IngestAllRequest()
-    _validate_chunk_params(body.chunk_size, body.chunk_overlap, user)
+    eff_size, eff_overlap = _resolve_ingest_chunks(db, user, body.chunk_size, body.chunk_overlap)
     _quota_check(user, db)
     runtime_config = load_runtime_model_config(db)
     task = ingest_documents_task.delay(
         input_dir=None,
         recreate_collection=True,
-        chunk_size=body.chunk_size,
-        chunk_overlap=body.chunk_overlap,
+        chunk_size=eff_size,
+        chunk_overlap=eff_overlap,
         runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
@@ -229,7 +239,7 @@ def ingest_all_documents_route(
         celery_task_id=task.id,
         job_type=JobType.ingest,
         created_by_user_id=uid,
-        meta={"mode": "ingest-all", "chunk_size": body.chunk_size, "chunk_overlap": body.chunk_overlap},
+        meta={"mode": "ingest-all", "chunk_size": eff_size, "chunk_overlap": eff_overlap},
     )
     _quota_commit(user, db, "POST /api/documents/ingest-all")
     return DocumentJobResponse(task_id=task.id, status=task.status, document=None)
@@ -243,12 +253,12 @@ def sync_stale_documents_route(
     db: Session = Depends(get_db),
 ) -> DocumentJobResponse:
     """Queue re-ingest for files changed on disk since last index."""
-    _validate_chunk_params(chunk_size, chunk_overlap, user)
+    eff_size, eff_overlap = _resolve_ingest_chunks(db, user, chunk_size, chunk_overlap)
     _quota_check(user, db)
     runtime_config = load_runtime_model_config(db)
     task = sync_stale_documents_task.delay(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+        chunk_size=eff_size,
+        chunk_overlap=eff_overlap,
         runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
@@ -257,7 +267,7 @@ def sync_stale_documents_route(
         celery_task_id=task.id,
         job_type=JobType.ingest,
         created_by_user_id=uid,
-        meta={"mode": "sync-stale", "chunk_size": chunk_size, "chunk_overlap": chunk_overlap},
+        meta={"mode": "sync-stale", "chunk_size": eff_size, "chunk_overlap": eff_overlap},
     )
     _quota_commit(user, db, "POST /api/documents/sync-stale")
     return DocumentJobResponse(task_id=task.id, status=task.status, document=None)
@@ -281,7 +291,7 @@ def reindex_single_document(
     user: User | None = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> DocumentJobResponse:
-    _validate_chunk_params(chunk_size, chunk_overlap, user)
+    eff_size, eff_overlap = _resolve_ingest_chunks(db, user, chunk_size, chunk_overlap)
     _quota_check(user, db)
     try:
         document = get_document_by_id(db, document_id)
@@ -290,8 +300,8 @@ def reindex_single_document(
     runtime_config = load_runtime_model_config(db)
     task = reindex_document_task.delay(
         document_id=document_id,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+        chunk_size=eff_size,
+        chunk_overlap=eff_overlap,
         runtime_config=runtime_config.as_task_payload(),
     )
     uid = user.id if user else None
@@ -300,7 +310,7 @@ def reindex_single_document(
         celery_task_id=task.id,
         job_type=JobType.reindex,
         created_by_user_id=uid,
-        meta={"document_id": document_id, "chunk_size": chunk_size, "chunk_overlap": chunk_overlap},
+        meta={"document_id": document_id, "chunk_size": eff_size, "chunk_overlap": eff_overlap},
     )
     _quota_commit(user, db, "POST /api/documents/{id}/reindex")
     return DocumentJobResponse(task_id=task.id, status=task.status, document=document)

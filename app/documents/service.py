@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from app.config import UPLOAD_DIR
 from app.db.models import Document as DocumentRow
-from app.db.qdrant import QdrantStore
 from app.ingestion.loader import (
     IngestionResult,
     IngestionStage,
@@ -24,7 +23,7 @@ from app.services.documents_repo import (
     ensure_migrated,
     upsert_document_row,
 )
-from app.services.runtime_config import RuntimeModelConfig
+from app.services.runtime_config import RuntimeModelConfig, load_runtime_model_config
 
 
 class ManagedDocument(BaseModel):
@@ -227,7 +226,7 @@ def reindex_stale_documents(
             stale_paths.append(path)
 
     if not stale_paths:
-        qdrant = QdrantStore()
+        qdrant = load_runtime_model_config(db).qdrant_store()
         q_points = qdrant.count() if qdrant.collection_exists() else 0
         return IngestionResult(
             input_dir=str(UPLOAD_DIR),
@@ -265,7 +264,7 @@ def delete_document(db: Session, document_id: str) -> ManagedDocument:
     document = get_document_by_id(db, document_id)
     file_path = Path(document.absolute_path)
 
-    qdrant = QdrantStore()
+    qdrant = load_runtime_model_config(db).qdrant_store()
     qdrant.delete_by_document_id(document_id)
 
     delete_document_row(db, document_id)

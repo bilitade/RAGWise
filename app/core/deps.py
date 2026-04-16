@@ -5,7 +5,7 @@ from fastapi import Depends, Header, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.config import REQUIRE_AUTH
+from app.config import ALLOW_ANONYMOUS_CHAT, REQUIRE_AUTH
 from app.core.security import decode_token
 from app.db.models import User, UserRole
 from app.db.session import get_db
@@ -68,6 +68,21 @@ def require_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
+def require_chat_user(
+    user: Annotated[User | None, Depends(require_active_user)],
+) -> User | None:
+    """Chat stream: allow anonymous only when ``ALLOW_ANONYMOUS_CHAT`` is true."""
+    if ALLOW_ANONYMOUS_CHAT:
+        return user
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required for chat (set ALLOW_ANONYMOUS_CHAT=true only for trusted local demos)",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user

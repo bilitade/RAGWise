@@ -6,6 +6,8 @@ export function getCurrentRoute(): AppRoute {
     if (p === "/documents") return "/documents";
     if (p === "/settings") return "/settings";
     if (p === "/login") return "/login";
+    if (p === "/forgot-password") return "/forgot-password";
+    if (p === "/reset-password") return "/reset-password";
     return "/";
 }
 

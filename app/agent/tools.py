@@ -57,7 +57,12 @@ def make_knowledge_base_search_tool(runtime_config: RuntimeModelConfig | None = 
     return knowledge_base_search
 
 
-def make_multi_source_research_tool(runtime_config: RuntimeModelConfig | None = None):
+def make_multi_source_research_tool(
+    runtime_config: RuntimeModelConfig | None = None,
+    *,
+    allow_knowledge_base: bool = True,
+    allow_web: bool = True,
+):
     @tool("multi_source_research")
     def multi_source_research(
         topic: str,
@@ -85,7 +90,10 @@ def make_multi_source_research_tool(runtime_config: RuntimeModelConfig | None = 
             "web_results": [],
         }
 
-        if include_knowledge_base:
+        use_kb = include_knowledge_base and allow_knowledge_base
+        use_web = include_web and allow_web
+
+        if use_kb:
             seen_kb: set[tuple[str, str]] = set()
             kb_results: list[dict[str, object]] = []
             for query in queries:
@@ -111,7 +119,7 @@ def make_multi_source_research_tool(runtime_config: RuntimeModelConfig | None = 
                     )
             payload["knowledge_base_results"] = kb_results
 
-        if include_web:
+        if use_web:
             client = _get_tavily_client()
             seen_web: set[str] = set()
             web_results: list[dict[str, object]] = []

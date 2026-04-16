@@ -12,7 +12,7 @@ from app.documents.service import (
 )
 from app.db.session import SessionLocal
 from app.ingestion.loader import IngestionStage, ingest_documents
-from app.services.runtime_config import RuntimeModelConfig
+from app.services.runtime_config import RuntimeModelConfig, load_runtime_model_config
 from app.worker.celery_app import celery_app
 
 _log = logging.getLogger(__name__)
@@ -74,11 +74,12 @@ def ingest_documents_task(
     chunk_overlap: int | None = None,
     runtime_config: dict | None = None,
 ) -> dict:
-    resolved_runtime_config = RuntimeModelConfig.from_task_payload(runtime_config)
+    payload_cfg = RuntimeModelConfig.from_task_payload(runtime_config)
 
     def runner(progress_callback):
         db = SessionLocal()
         try:
+            resolved_runtime_config = payload_cfg or load_runtime_model_config(db)
             if input_dir:
                 input_path = Path(input_dir)
                 if input_path.is_file():
@@ -127,11 +128,12 @@ def reindex_document_task(
     chunk_overlap: int | None = None,
     runtime_config: dict | None = None,
 ) -> dict:
-    resolved_runtime_config = RuntimeModelConfig.from_task_payload(runtime_config)
+    payload_cfg = RuntimeModelConfig.from_task_payload(runtime_config)
 
     def runner(progress_callback):
         db = SessionLocal()
         try:
+            resolved_runtime_config = payload_cfg or load_runtime_model_config(db)
             return reindex_document(
                 db,
                 document_id,
@@ -157,11 +159,12 @@ def sync_stale_documents_task(
     chunk_overlap: int | None = None,
     runtime_config: dict | None = None,
 ) -> dict:
-    resolved_runtime_config = RuntimeModelConfig.from_task_payload(runtime_config)
+    payload_cfg = RuntimeModelConfig.from_task_payload(runtime_config)
 
     def runner(progress_callback):
         db = SessionLocal()
         try:
+            resolved_runtime_config = payload_cfg or load_runtime_model_config(db)
             return reindex_stale_documents(
                 db,
                 progress_callback=progress_callback,
