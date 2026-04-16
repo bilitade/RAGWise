@@ -271,6 +271,7 @@ def update_chat_thread(
 @limiter.limit(chat_stream_limit_for_key)
 def stream_chat(
     request: Request,
+    response: Response,
     payload: ChatStreamRequest,
     db: Session = Depends(get_db),
     user: User | None = Depends(require_chat_user),

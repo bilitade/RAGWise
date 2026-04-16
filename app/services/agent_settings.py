@@ -1,4 +1,21 @@
-"""Agent config stored as one JSON row (legacy keys migrated once)."""
+"""
+Agent configuration loader.
+
+Reads the single JSON config row (agent_config_json) from the database,
+migrates legacy rows when present, and builds the system prompt via
+app.agent.prompts.build_system_prompt.
+
+Prompt assembly order (enforced inside build_system_prompt):
+  1. Tool availability block   — always first, server-side flags
+  2. Role                      — company name + optional admin override
+  3. Tool usage guide          — only when tools are enabled
+  4. Citations                 — only when tools are enabled
+  5. Output format
+  6. Behavior
+  7. Guardrails                — admin-set, verbatim
+  8. Guidelines                — admin-set, verbatim
+  9. Active persona            — per-request
+"""
 
 from __future__ import annotations
 
@@ -9,7 +26,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.agent.prompts import compose_default_agent_body, default_agent_config_prompt_fields
+from app.agent.prompts import build_system_prompt, compose_default_agent_body, default_agent_config_prompt_fields
 from app.config import COMPANY_NAME
 from app.db.models import AgentPersona, AppSetting
 from app.services.runtime_config import RuntimeModelConfig
@@ -27,8 +44,12 @@ _LEGACY_KEYS = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Default config shape
+# ---------------------------------------------------------------------------
+
 def default_agent_config() -> dict[str, Any]:
-    """Default agent config document."""
+    """Return the default agent config document."""
     return {
         "version": 1,
         "company_display_name": "",
@@ -39,6 +60,10 @@ def default_agent_config() -> dict[str, Any]:
         **default_agent_config_prompt_fields(),
     }
 
+
+# ---------------------------------------------------------------------------
+# Persistence helpers
+# ---------------------------------------------------------------------------
 
 def _read_row(db: Session, key: str) -> AppSetting | None:
     return db.get(AppSetting, key)
@@ -56,15 +81,22 @@ def _legacy_flag(row: AppSetting | None, *, default: bool) -> bool:
 
 
 def _migrate_legacy_to_json(db: Session) -> dict[str, Any]:
-    """Migrate legacy rows to JSON and delete old keys."""
+    """One-time migration: read legacy individual rows → single JSON row."""
     cfg = default_agent_config()
 
     row_base = _read_row(db, "agent_base_system_prompt")
     if row_base and row_base.value:
-        cfg["base_system_prompt"] = str(row_base.value).strip()
+        stored = str(row_base.value).strip()
+        # Discard if it is just the old shipped default (which referenced disabled tools)
+        if stored and stored != compose_default_agent_body():
+            cfg["base_system_prompt"] = stored
 
-    cfg["tool_knowledge_base"] = _legacy_flag(_read_row(db, "agent_tool_knowledge_base"), default=True)
-    cfg["tool_internet"] = _legacy_flag(_read_row(db, "agent_tool_internet"), default=True)
+    cfg["tool_knowledge_base"] = _legacy_flag(
+        _read_row(db, "agent_tool_knowledge_base"), default=True
+    )
+    cfg["tool_internet"] = _legacy_flag(
+        _read_row(db, "agent_tool_internet"), default=True
+    )
 
     row_co = _read_row(db, "company_display_name")
     if row_co and str(row_co.value).strip():
@@ -95,32 +127,27 @@ def _parse_json_config(raw: str) -> dict[str, Any] | None:
         data = json.loads(raw)
     except json.JSONDecodeError:
         return None
-    if not isinstance(data, dict):
-        return None
-    return data
+    return data if isinstance(data, dict) else None
 
 
 def load_agent_config_dict(db: Session) -> dict[str, Any]:
-    """Load merged config; migrate legacy rows if needed."""
+    """Load merged agent config; migrate legacy rows when not yet migrated."""
     row = _read_row(db, KEY_AGENT_CONFIG_JSON)
     if row and row.value and str(row.value).strip():
         parsed = _parse_json_config(str(row.value))
         if parsed is not None:
-            merged = default_agent_config()
-            merged.update(parsed)
-            merged["version"] = int(merged.get("version") or 1)
-            sanitized = default_agent_config()
-            for k in sanitized:
-                if k in merged:
-                    sanitized[k] = merged[k]
-            sanitized["version"] = merged["version"]
-            return sanitized
+            base = default_agent_config()
+            for k in base:
+                if k in parsed:
+                    base[k] = parsed[k]
+            base["version"] = int(parsed.get("version") or 1)
+            return base
 
     return _migrate_legacy_to_json(db)
 
 
 def save_agent_config_dict(db: Session, cfg: dict[str, Any], *, commit: bool = True) -> None:
-    """Persist known keys only."""
+    """Persist known keys only (ignore unknown keys from callers)."""
     base = default_agent_config()
     for k in base:
         if k in cfg:
@@ -136,20 +163,9 @@ def save_agent_config_dict(db: Session, cfg: dict[str, Any], *, commit: bool = T
         db.commit()
 
 
-def load_stored_agent_base_prompt(db: Session) -> str:
-    cfg = load_agent_config_dict(db)
-    return str(cfg.get("base_system_prompt") or "").strip()
-
-
-def load_agent_base_system_prompt(db: Session) -> str:
-    raw = load_stored_agent_base_prompt(db)
-    if raw:
-        return raw
-    env = (os.environ.get("AGENT_BASE_SYSTEM_PROMPT") or "").strip()
-    if env:
-        return env
-    return compose_default_agent_body()
-
+# ---------------------------------------------------------------------------
+# Config field accessors
+# ---------------------------------------------------------------------------
 
 def load_tool_knowledge_base_enabled(db: Session) -> bool:
     return bool(load_agent_config_dict(db).get("tool_knowledge_base", True))
@@ -159,11 +175,48 @@ def load_tool_internet_enabled(db: Session) -> bool:
     return bool(load_agent_config_dict(db).get("tool_internet", True))
 
 
+def load_company_display_name(db: Session) -> str:
+    cfg = load_agent_config_dict(db)
+    v = str(cfg.get("company_display_name") or "").strip()
+    return v or (COMPANY_NAME or "")
+
+
+def load_guardrails_text(db: Session) -> str:
+    return str(load_agent_config_dict(db).get("guardrails_text") or "").strip()
+
+
+def load_guidelines_text(db: Session) -> str:
+    return str(load_agent_config_dict(db).get("guidelines_text") or "").strip()
+
+
+def _load_custom_role(db: Session) -> str:
+    """
+    Return admin-customised role text if it differs from the built-in default.
+    An empty string means 'use the built-in role description'.
+    """
+    cfg = load_agent_config_dict(db)
+    stored = str(cfg.get("base_system_prompt") or "").strip()
+    if not stored:
+        # Also check the environment variable override
+        env_val = (os.environ.get("AGENT_BASE_SYSTEM_PROMPT") or "").strip()
+        if env_val and env_val != compose_default_agent_body():
+            return env_val
+        return ""
+    # Discard if it is literally the old shipped default
+    if stored == compose_default_agent_body():
+        return ""
+    return stored
+
+
+# ---------------------------------------------------------------------------
+# Tool list builder
+# ---------------------------------------------------------------------------
+
 def build_agent_tools_list(
     db: Session,
     *,
     runtime_config: RuntimeModelConfig | None = None,
-):
+) -> list:
     from app.agent.tools import (
         make_internet_search_tool,
         make_knowledge_base_search_tool,
@@ -188,84 +241,9 @@ def build_agent_tools_list(
     return tools
 
 
-def build_tool_runtime_constraints(db: Session) -> str:
-    """Align the system prompt with tools actually registered (prevents tool-name hallucination)."""
-    kb = load_tool_knowledge_base_enabled(db)
-    net = load_tool_internet_enabled(db)
-    if kb and net:
-        return ""
-
-    header = "### Available tools (server-enforced)\n\n"
-
-    if not kb and not net:
-        return header + (
-            "You have **no** retrieval or web-search tools in this session (no `knowledge_base_search`, "
-            "`internet_search`, or `multi_source_research`). Do **not** claim you ran any of these tools, "
-            "and do **not** fabricate document names, URLs, tool JSON, or citations. If the user needs "
-            "grounded internal or live-web facts, say clearly that those tools are disabled and answer only "
-            "from general knowledge where appropriate, without invented sources."
-        )
-
-    if kb and not net:
-        return header + (
-            "`internet_search` is **disabled**. You may use `knowledge_base_search` and `multi_source_research` "
-            "only for knowledge-base content. Do **not** claim you searched the public web or fabricate web "
-            "URLs or page titles; cite only real document names that appear in tool output."
-        )
-
-    return header + (
-        "`knowledge_base_search` is **disabled**. You may use `internet_search` and `multi_source_research` "
-        "only for live web content. Do **not** claim you read internal indexed documents or invent "
-        "knowledge-base filenames; cite only real titles/URLs from tool output."
-    )
-
-
-def load_company_display_name(db: Session) -> str:
-    cfg = load_agent_config_dict(db)
-    v = str(cfg.get("company_display_name") or "").strip()
-    if v:
-        return v
-    return COMPANY_NAME or ""
-
-
-def load_guardrails_text(db: Session) -> str:
-    return str(load_agent_config_dict(db).get("guardrails_text") or "").strip()
-
-
-def load_guidelines_text(db: Session) -> str:
-    return str(load_agent_config_dict(db).get("guidelines_text") or "").strip()
-
-
-def build_organization_block(db: Session) -> str:
-    company = load_company_display_name(db)
-    if not company:
-        return ""
-    return (
-        "### Organization\n\n"
-        f"You assist users in the context of **{company}**. When it helps, refer to the organization by name.\n\n"
-    )
-
-
-def build_dynamic_prefix(db: Session) -> str:
-    blocks: list[str] = []
-    org = build_organization_block(db).strip()
-    if org:
-        blocks.append(org)
-    gr = load_guardrails_text(db).strip()
-    if gr:
-        blocks.append("### Guardrails\n\n" + gr)
-    gl = load_guidelines_text(db).strip()
-    if gl:
-        blocks.append("### Guidelines\n\n" + gl)
-    if not blocks:
-        return ""
-    return "\n\n".join(blocks) + "\n\n"
-
-
-def resolve_chat_system_prompt(db: Session) -> str:
-    """Core system prompt from config."""
-    return load_agent_base_system_prompt(db)
-
+# ---------------------------------------------------------------------------
+# Persona loader
+# ---------------------------------------------------------------------------
 
 def _load_persona_prompt(db: Session, persona_id: UUID | None) -> str:
     if persona_id is None:
@@ -276,16 +254,39 @@ def _load_persona_prompt(db: Session, persona_id: UUID | None) -> str:
     return persona.system_prompt.strip()
 
 
-def resolve_full_system_prompt(db: Session, *, persona_id: UUID | None = None) -> str:
-    """Prefix, core prompt, and optional persona instructions."""
-    core = resolve_chat_system_prompt(db)
-    prefix = build_dynamic_prefix(db)
-    tool_constraints = build_tool_runtime_constraints(db).strip()
-    persona_prompt = _load_persona_prompt(db, persona_id)
+# ---------------------------------------------------------------------------
+# System prompt assembly  (single entry-point for agent creation)
+# ---------------------------------------------------------------------------
 
-    blocks = [block for block in (prefix.strip(), core.strip()) if block]
-    if tool_constraints:
-        blocks.append(tool_constraints)
-    if persona_prompt:
-        blocks.append(f"### Active Persona\n\n{persona_prompt}")
-    return "\n\n---\n\n".join(blocks)
+def resolve_full_system_prompt(db: Session, *, persona_id: UUID | None = None) -> str:
+    """
+    Build the complete agent system prompt from persisted config.
+
+    Delegates all ordering and composition to build_system_prompt so the
+    tool-availability block is always injected first.
+    """
+    cfg = load_agent_config_dict(db)
+
+    return build_system_prompt(
+        tool_kb=bool(cfg.get("tool_knowledge_base", True)),
+        tool_internet=bool(cfg.get("tool_internet", True)),
+        company_name=load_company_display_name(db),
+        custom_role=_load_custom_role(db),
+        guardrails=str(cfg.get("guardrails_text") or "").strip(),
+        guidelines=str(cfg.get("guidelines_text") or "").strip(),
+        persona=_load_persona_prompt(db, persona_id),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Backwards-compat aliases (used by agent.py / chat routes / older tests)
+# ---------------------------------------------------------------------------
+
+def resolve_chat_system_prompt(db: Session) -> str:
+    """Alias kept for backwards compatibility."""
+    return resolve_full_system_prompt(db)
+
+
+def load_agent_base_system_prompt(db: Session) -> str:
+    """Alias kept for backwards compatibility."""
+    return resolve_full_system_prompt(db)

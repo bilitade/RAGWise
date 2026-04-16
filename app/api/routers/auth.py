@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -25,7 +25,7 @@ class TokenResponse(BaseModel):
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit(LOGIN_LIMIT, key_func=get_remote_address)
-def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(request: Request, response: Response, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.scalar(select(User).where(User.email == payload.email.strip().lower()))
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -51,7 +51,7 @@ class ForgotPasswordResponse(BaseModel):
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 @limiter.limit(AUTH_PUBLIC_LIMIT, key_func=get_remote_address)
-def forgot_password(request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
+def forgot_password(request: Request, response: Response, payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
     request_password_reset(db, email=str(payload.email))
     return ForgotPasswordResponse()
 
@@ -63,7 +63,7 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/reset-password", response_model=ForgotPasswordResponse)
 @limiter.limit(AUTH_PUBLIC_LIMIT, key_func=get_remote_address)
-def reset_password(request: Request, payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
+def reset_password(request: Request, response: Response, payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
     ok = reset_password_with_token(db, raw_token=payload.token, new_password=payload.new_password)
     if not ok:
         raise HTTPException(status_code=400, detail="Invalid or expired reset link")
