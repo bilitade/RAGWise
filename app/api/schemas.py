@@ -45,7 +45,7 @@ class RetrievalRequest(BaseModel):
 
 class AdvancedRetrievalRequest(RetrievalRequest):
     vector_top_k: int = 10
-    bm25_top_k: int = 10
+    sparse_top_k: int = 10
     hybrid_alpha: float | None = Field(default=None, ge=0.0, le=1.0)
 
 

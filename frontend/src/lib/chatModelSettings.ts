@@ -5,7 +5,7 @@
  *
  * `CHAT_PROVIDER_IDS` must match `MODEL_PROVIDER_OPTIONS` in `app/services/openai_catalog.py`.
  */
-export const CHAT_PROVIDER_IDS = ["openai", "groq", "openrouter", "huggingface", "nvidia"] as const;
+export const CHAT_PROVIDER_IDS = ["openai", "groq", "openrouter", "huggingface", "nvidia", "tenstorrent"] as const;
 export type ChatProviderId = (typeof CHAT_PROVIDER_IDS)[number];
 
 export type ChatModelAliasRow = { alias: string; provider: string; model_id: string };

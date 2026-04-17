@@ -43,7 +43,7 @@ def retrieve_contexts(
     top_k: int = 5,
     mode: RetrievalMode = "hybrid",
     vector_top_k: int = 10,
-    bm25_top_k: int = 10,
+    sparse_top_k: int = 10,
     hybrid_alpha: float | None = None,
 ) -> list[str]:
     """Vector or hybrid retrieval."""
@@ -54,7 +54,7 @@ def retrieve_contexts(
             question,
             top_k=top_k,
             vector_top_k=vector_top_k,
-            bm25_top_k=bm25_top_k,
+            sparse_top_k=sparse_top_k,
             alpha=hybrid_alpha,
         )
     )
@@ -116,7 +116,7 @@ def build_ragas_rows(
     retrieval_mode: RetrievalMode = "hybrid",
     top_k: int = 5,
     vector_top_k: int = 10,
-    bm25_top_k: int = 10,
+    sparse_top_k: int = 10,
     generate_answers: bool = True,
     answer_model: str | None = None,
     retrieve: Callable[..., list[str]] | None = None,
@@ -131,7 +131,7 @@ def build_ragas_rows(
             top_k=top_k,
             mode=retrieval_mode,
             vector_top_k=vector_top_k,
-            bm25_top_k=bm25_top_k,
+            sparse_top_k=sparse_top_k,
         )
         if generate_answers:
             answer = rag_answer(q, contexts, model=answer_model or OPENAI_MODEL)

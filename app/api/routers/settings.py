@@ -46,6 +46,7 @@ from app.services.openai_catalog import (
     OPENAI_CHAT_MODEL_OPTIONS,
     OPENAI_EMBED_MODEL_OPTIONS,
     OPENROUTER_CHAT_MODEL_OPTIONS,
+    TENSTORRENT_CHAT_MODEL_OPTIONS,
 )
 from app.services.runtime_config import (
     KEY_CHAT_MODEL_ALIASES,
@@ -60,6 +61,8 @@ from app.services.runtime_config import (
     KEY_MODEL_PROVIDER,
     KEY_NVIDIA_API_KEY,
     KEY_NVIDIA_OPENAI_BASE_URL,
+    KEY_TENSTORRENT_API_KEY,
+    KEY_TENSTORRENT_OPENAI_BASE_URL,
     KEY_OPENAI_API_KEY,
     KEY_OPENAI_CHAT_BASE_URL,
     KEY_OPENROUTER_API_KEY,
@@ -78,6 +81,8 @@ from app.services.runtime_config import (
     load_model_provider,
     load_nvidia_api_key,
     load_nvidia_openai_base_url,
+    load_tenstorrent_api_key,
+    load_tenstorrent_openai_base_url,
     load_openai_api_key,
     load_openai_chat_base_url,
     load_openrouter_api_key,
@@ -141,6 +146,8 @@ def _chat_catalog_for_provider(provider: str) -> list[str]:
         return list(HUGGINGFACE_CHAT_MODEL_OPTIONS)
     if p == "nvidia":
         return list(NVIDIA_CHAT_MODEL_OPTIONS)
+    if p == "tenstorrent":
+        return list(TENSTORRENT_CHAT_MODEL_OPTIONS)
     return list(OPENAI_CHAT_MODEL_OPTIONS)
 
 
@@ -156,6 +163,7 @@ def _config_response(db: Session) -> "SettingsConfigResponse":
     or_plain = load_openrouter_api_key(db)
     hf_plain = load_huggingface_api_key(db)
     nv_plain = load_nvidia_api_key(db)
+    tt_plain = load_tenstorrent_api_key(db)
     provider = load_model_provider(db)
     return SettingsConfigResponse(
         model_provider=provider,
@@ -171,10 +179,13 @@ def _config_response(db: Session) -> "SettingsConfigResponse":
         huggingface_api_key_last4=mask_last4(hf_plain) if hf_plain else None,
         nvidia_api_key_configured=bool(nv_plain),
         nvidia_api_key_last4=mask_last4(nv_plain) if nv_plain else None,
+        tenstorrent_api_key_configured=bool(tt_plain),
+        tenstorrent_api_key_last4=mask_last4(tt_plain) if tt_plain else None,
         groq_openai_base_url=load_groq_openai_base_url(db),
         openrouter_openai_base_url=load_openrouter_openai_base_url(db),
         huggingface_openai_base_url=load_huggingface_openai_base_url(db),
         nvidia_openai_base_url=load_nvidia_openai_base_url(db),
+        tenstorrent_openai_base_url=load_tenstorrent_openai_base_url(db),
         openai_chat_base_url=load_openai_chat_base_url(db),
         qdrant_url=load_qdrant_url(db),
         qdrant_collection=load_qdrant_collection(db),
@@ -187,6 +198,7 @@ def _config_response(db: Session) -> "SettingsConfigResponse":
         openrouter_chat_model_options=list(OPENROUTER_CHAT_MODEL_OPTIONS),
         huggingface_chat_model_options=list(HUGGINGFACE_CHAT_MODEL_OPTIONS),
         nvidia_chat_model_options=list(NVIDIA_CHAT_MODEL_OPTIONS),
+        tenstorrent_chat_model_options=list(TENSTORRENT_CHAT_MODEL_OPTIONS),
         openai_embed_model_options=list(OPENAI_EMBED_MODEL_OPTIONS),
         chat_model_aliases=[
             ChatModelAliasOut(alias=a["alias"], provider=a["provider"], model_id=a["model_id"])
@@ -210,10 +222,13 @@ class SettingsConfigResponse(BaseModel):
     huggingface_api_key_last4: str | None = None
     nvidia_api_key_configured: bool
     nvidia_api_key_last4: str | None = None
+    tenstorrent_api_key_configured: bool
+    tenstorrent_api_key_last4: str | None = None
     groq_openai_base_url: str
     openrouter_openai_base_url: str
     huggingface_openai_base_url: str
     nvidia_openai_base_url: str
+    tenstorrent_openai_base_url: str
     openai_chat_base_url: str
     qdrant_url: str
     qdrant_collection: str
@@ -226,6 +241,7 @@ class SettingsConfigResponse(BaseModel):
     openrouter_chat_model_options: list[str]
     huggingface_chat_model_options: list[str]
     nvidia_chat_model_options: list[str]
+    tenstorrent_chat_model_options: list[str]
     openai_embed_model_options: list[str]
     chat_model_aliases: list[ChatModelAliasOut]
     smtp: SmtpConfigOut
@@ -246,10 +262,12 @@ class SettingsConfigPatch(BaseModel):
     openrouter_api_key: str | None = None
     huggingface_api_key: str | None = None
     nvidia_api_key: str | None = None
+    tenstorrent_api_key: str | None = None
     groq_openai_base_url: str | None = None
     openrouter_openai_base_url: str | None = None
     huggingface_openai_base_url: str | None = None
     nvidia_openai_base_url: str | None = None
+    tenstorrent_openai_base_url: str | None = None
     openai_chat_base_url: str | None = None
     qdrant_url: str | None = None
     qdrant_collection: str | None = None
@@ -335,6 +353,9 @@ def patch_config(
     if body.nvidia_api_key is not None and body.nvidia_api_key.strip():
         enc = encrypt_secret(body.nvidia_api_key.strip())
         _upsert(db, KEY_NVIDIA_API_KEY, enc, is_secret=True)
+    if body.tenstorrent_api_key is not None and body.tenstorrent_api_key.strip():
+        enc = encrypt_secret(body.tenstorrent_api_key.strip())
+        _upsert(db, KEY_TENSTORRENT_API_KEY, enc, is_secret=True)
     if body.groq_openai_base_url is not None:
         gq_url = body.groq_openai_base_url.strip()
         if not gq_url:
@@ -364,6 +385,12 @@ def patch_config(
             _delete_setting(db, KEY_NVIDIA_OPENAI_BASE_URL)
         else:
             _upsert(db, KEY_NVIDIA_OPENAI_BASE_URL, _validate_openai_compatible_base_url(nv_url), is_secret=False)
+    if body.tenstorrent_openai_base_url is not None:
+        tt_url = body.tenstorrent_openai_base_url.strip()
+        if not tt_url:
+            _delete_setting(db, KEY_TENSTORRENT_OPENAI_BASE_URL)
+        else:
+            _upsert(db, KEY_TENSTORRENT_OPENAI_BASE_URL, _validate_openai_compatible_base_url(tt_url), is_secret=False)
     if body.openai_chat_base_url is not None:
         oai_url = body.openai_chat_base_url.strip()
         if not oai_url:

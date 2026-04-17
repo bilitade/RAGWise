@@ -22,6 +22,7 @@ from app.config import (
     QDRANT_COLLECTION,
     QDRANT_URL,
     RAGAS_EVAL_MODEL,
+    TENSTORRENT_OPENAI_BASE_URL,
 )
 from app.core.crypto import decrypt_secret
 from app.db.models import AppSetting
@@ -41,6 +42,8 @@ KEY_GROQ_OPENAI_BASE_URL = "groq_openai_base_url"
 KEY_OPENROUTER_OPENAI_BASE_URL = "openrouter_openai_base_url"
 KEY_HUGGINGFACE_OPENAI_BASE_URL = "huggingface_openai_base_url"
 KEY_NVIDIA_OPENAI_BASE_URL = "nvidia_openai_base_url"
+KEY_TENSTORRENT_API_KEY = "tenstorrent_api_key"
+KEY_TENSTORRENT_OPENAI_BASE_URL = "tenstorrent_openai_base_url"
 KEY_QDRANT_URL = "qdrant_url"
 KEY_QDRANT_COLLECTION = "qdrant_collection"
 KEY_INGEST_CHUNK_SIZE = "ingest_chunk_size"
@@ -71,10 +74,12 @@ class RuntimeModelConfig:
     openrouter_api_key: str | None
     huggingface_api_key: str | None
     nvidia_api_key: str | None
+    tenstorrent_api_key: str | None
     groq_openai_base_url: str
     openrouter_openai_base_url: str
     huggingface_openai_base_url: str
     nvidia_openai_base_url: str
+    tenstorrent_openai_base_url: str
     openai_chat_base_url: str
     qdrant_url: str
     qdrant_collection: str
@@ -92,6 +97,8 @@ class RuntimeModelConfig:
             return self.huggingface_api_key
         if p == "nvidia":
             return self.nvidia_api_key
+        if p == "tenstorrent":
+            return self.tenstorrent_api_key
         return self.openai_api_key
 
     def chat_llm_base_url(self) -> str | None:
@@ -110,6 +117,9 @@ class RuntimeModelConfig:
             return u or None
         if p == "nvidia":
             u = _normalize_chat_base_url(self.nvidia_openai_base_url)
+            return u or None
+        if p == "tenstorrent":
+            u = _normalize_chat_base_url(self.tenstorrent_openai_base_url)
             return u or None
         return None
 
@@ -158,10 +168,12 @@ class RuntimeModelConfig:
             "openrouter_api_key": self.openrouter_api_key,
             "huggingface_api_key": self.huggingface_api_key,
             "nvidia_api_key": self.nvidia_api_key,
+            "tenstorrent_api_key": self.tenstorrent_api_key,
             "groq_openai_base_url": self.groq_openai_base_url,
             "openrouter_openai_base_url": self.openrouter_openai_base_url,
             "huggingface_openai_base_url": self.huggingface_openai_base_url,
             "nvidia_openai_base_url": self.nvidia_openai_base_url,
+            "tenstorrent_openai_base_url": self.tenstorrent_openai_base_url,
             "openai_chat_base_url": self.openai_chat_base_url,
             "qdrant_url": self.qdrant_url,
             "qdrant_collection": self.qdrant_collection,
@@ -191,6 +203,7 @@ class RuntimeModelConfig:
             openrouter_api_key=_normalize_optional_string(payload.get("openrouter_api_key")),
             huggingface_api_key=_normalize_optional_string(payload.get("huggingface_api_key")),
             nvidia_api_key=_normalize_optional_string(payload.get("nvidia_api_key")),
+            tenstorrent_api_key=_normalize_optional_string(payload.get("tenstorrent_api_key")),
             groq_openai_base_url=_normalize_chat_base_url(str(payload.get("groq_openai_base_url") or GROQ_OPENAI_BASE_URL))
             or GROQ_OPENAI_BASE_URL,
             openrouter_openai_base_url=_normalize_chat_base_url(
@@ -205,6 +218,10 @@ class RuntimeModelConfig:
                 str(payload.get("nvidia_openai_base_url") or NVIDIA_OPENAI_BASE_URL),
             )
             or NVIDIA_OPENAI_BASE_URL,
+            tenstorrent_openai_base_url=_normalize_chat_base_url(
+                str(payload.get("tenstorrent_openai_base_url") or TENSTORRENT_OPENAI_BASE_URL),
+            )
+            or TENSTORRENT_OPENAI_BASE_URL,
             openai_chat_base_url=_normalize_chat_base_url(str(payload.get("openai_chat_base_url") or "")),
             qdrant_url=str(payload.get("qdrant_url") or QDRANT_URL or "http://localhost:6333").strip(),
             qdrant_collection=str(payload.get("qdrant_collection") or QDRANT_COLLECTION or "knowledge_base").strip(),
@@ -315,6 +332,16 @@ def load_nvidia_openai_base_url(db: Session | None = None) -> str:
     return _load_plain_setting(db, KEY_NVIDIA_OPENAI_BASE_URL, "NVIDIA_OPENAI_BASE_URL", NVIDIA_OPENAI_BASE_URL)
 
 
+def load_tenstorrent_api_key(db: Session | None = None) -> str | None:
+    return _load_secret_key(db, KEY_TENSTORRENT_API_KEY, "TENSTORRENT_API_KEY")
+
+
+def load_tenstorrent_openai_base_url(db: Session | None = None) -> str:
+    return _load_plain_setting(
+        db, KEY_TENSTORRENT_OPENAI_BASE_URL, "TENSTORRENT_OPENAI_BASE_URL", TENSTORRENT_OPENAI_BASE_URL
+    )
+
+
 def load_groq_openai_base_url(db: Session | None = None) -> str:
     return _load_plain_setting(db, KEY_GROQ_OPENAI_BASE_URL, "GROQ_OPENAI_BASE_URL", GROQ_OPENAI_BASE_URL)
 
@@ -422,10 +449,12 @@ def load_runtime_model_config(db: Session | None = None) -> RuntimeModelConfig:
         openrouter_api_key=load_openrouter_api_key(db),
         huggingface_api_key=load_huggingface_api_key(db),
         nvidia_api_key=load_nvidia_api_key(db),
+        tenstorrent_api_key=load_tenstorrent_api_key(db),
         groq_openai_base_url=load_groq_openai_base_url(db),
         openrouter_openai_base_url=load_openrouter_openai_base_url(db),
         huggingface_openai_base_url=load_huggingface_openai_base_url(db),
         nvidia_openai_base_url=load_nvidia_openai_base_url(db),
+        tenstorrent_openai_base_url=load_tenstorrent_openai_base_url(db),
         openai_chat_base_url=load_openai_chat_base_url(db),
         qdrant_url=load_qdrant_url(db),
         qdrant_collection=load_qdrant_collection(db),

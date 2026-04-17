@@ -3,7 +3,7 @@ from app.db.models import User, UserRole
 
 class SearchMode:
     similarity = "similarity"
-    bm25 = "bm25"
+    splade = "splade"
     advanced = "advanced"
 
 

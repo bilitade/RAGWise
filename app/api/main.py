@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Banking RAG API",
+    title="RagWise API",
     version="0.2.0",
     lifespan=lifespan,
 )

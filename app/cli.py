@@ -79,10 +79,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Candidate pool size for vector search in hybrid mode.",
     )
     search_parser.add_argument(
-        "--bm25-top-k",
+        "--sparse-top-k",
         type=int,
         default=10,
-        help="Candidate pool size for sparse (lexical) retrieval in hybrid mode.",
+        help="Candidate pool size for sparse (Splade) retrieval in hybrid mode.",
     )
     search_parser.add_argument(
         "--hybrid-alpha",
@@ -142,7 +142,7 @@ def _run_search(args: argparse.Namespace) -> None:
             query=args.query,
             top_k=args.top_k,
             vector_top_k=args.vector_top_k,
-            bm25_top_k=args.bm25_top_k,
+            sparse_top_k=args.sparse_top_k,
             alpha=args.hybrid_alpha,
         )
     else:

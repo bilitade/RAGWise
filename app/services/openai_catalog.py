@@ -1,6 +1,6 @@
 """Model id lists and provider registry for the admin UI (OpenAI-compatible chat)."""
 
-MODEL_PROVIDER_OPTIONS: tuple[str, ...] = ("openai", "groq", "openrouter", "huggingface", "nvidia")
+MODEL_PROVIDER_OPTIONS: tuple[str, ...] = ("openai", "groq", "openrouter", "huggingface", "nvidia", "tenstorrent")
 
 OPENAI_CHAT_MODEL_OPTIONS: tuple[str, ...] = (
     "gpt-4.1",
@@ -102,6 +102,19 @@ NVIDIA_CHAT_MODEL_OPTIONS: tuple[str, ...] = (
     "nvidia/nemotron-4-340b-instruct",
     "ibm/granite-8b-code-instruct",
     "snowflake/arctic",
+)
+
+# Tenstorrent tt-inference-server (local OpenAI-compatible endpoint).
+# Model ids depend on what is loaded on the server; defaults below match the demo cluster.
+TENSTORRENT_CHAT_MODEL_OPTIONS: tuple[str, ...] = (
+    "Qwen/Qwen2.5-VL-72B-Instruct",
+    "Qwen/Qwen2.5-72B-Instruct",
+    "Qwen/Qwen2.5-32B-Instruct",
+    "meta-llama/Llama-3.3-70B-Instruct",
+    "meta-llama/Llama-3.1-70B-Instruct",
+    "meta-llama/Llama-3.1-8B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.3",
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
 )
 
 OPENAI_EMBED_MODEL_OPTIONS: tuple[str, ...] = (

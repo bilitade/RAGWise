@@ -37,7 +37,7 @@ def _qdrant_rest_point_id(node_id: str) -> str:
     try:
         return str(uuid.UUID(s))
     except ValueError:
-        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"rag-deep-agent:node:{s}"))
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"ragwise:node:{s}"))
 
 
 def _sanitize_sparse_vector_for_upsert(

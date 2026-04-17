@@ -1,25 +1,20 @@
 """
 Agent system prompt builder.
 
-Single entry-point: build_system_prompt(**kwargs) → str
-
-Structure (always in this order so the model sees constraints first):
-  1. Tool availability  — determined by server-side flags, always top
-  2. Role               — who the agent is, what company it serves
-  3. Tool usage guide   — how to call available tools (omitted when none)
-  4. Citations          — mandatory sourcing rules (omitted when no tools)
-  5. Output format      — Markdown, files, length
-  6. Behavior           — research execution rules
-  7. Guardrails         — admin-set hard constraints (injected verbatim)
-  8. Guidelines         — admin-set soft preferences (injected verbatim)
+build_system_prompt(**kwargs) → str assembles the prompt in a fixed order so
+the model always sees constraints before capabilities:
+  1. Tool availability  — server-side flags, always injected first
+  2. Role               — who the agent is and what company it serves
+  3. Tool usage guide   — omitted when no tools are enabled
+  4. Citations          — omitted when no tools are enabled
+  5. Output format
+  6. Behavior
+  7. Guardrails         — admin-set hard constraints, injected verbatim
+  8. Guidelines         — admin-set soft preferences, injected verbatim
   9. Active persona     — optional per-request character
 """
 
 from __future__ import annotations
-
-# ---------------------------------------------------------------------------
-# § 1 – Tool availability block (always injected first)
-# ---------------------------------------------------------------------------
 
 _TOOL_BLOCK_BOTH = """\
 ## Tool Availability
@@ -93,10 +88,6 @@ def _tool_availability_block(*, kb: bool, internet: bool) -> str:
     return _TOOL_BLOCK_NONE
 
 
-# ---------------------------------------------------------------------------
-# § 2 – Role
-# ---------------------------------------------------------------------------
-
 _ROLE_DEFAULT = "You are an expert AI research and question-answering assistant."
 
 _ROLE_WITH_COMPANY = "You are an expert AI research and question-answering assistant serving **{company}**."
@@ -112,10 +103,6 @@ def _role_block(company_name: str, custom_role: str) -> str:
     )
     return f"## Role\n\n{base}"
 
-
-# ---------------------------------------------------------------------------
-# § 3 – Tool usage guide (only rendered when at least one tool is on)
-# ---------------------------------------------------------------------------
 
 _TOOL_GUIDE_BOTH = """\
 ## How to Use Your Tools
@@ -151,10 +138,6 @@ def _tool_guide_block(*, kb: bool, internet: bool) -> str | None:
     return None
 
 
-# ---------------------------------------------------------------------------
-# § 4 – Citations (only rendered when at least one tool is on)
-# ---------------------------------------------------------------------------
-
 _CITATIONS = """\
 ## Citations
 
@@ -168,10 +151,6 @@ Rules:
 - If both tools are used, keep knowledge-base and web citations visually distinct."""
 
 
-# ---------------------------------------------------------------------------
-# § 5 – Output format (always included)
-# ---------------------------------------------------------------------------
-
 _OUTPUT_FORMAT = """\
 ## Output Format
 
@@ -183,10 +162,6 @@ _OUTPUT_FORMAT = """\
 - Never claim a file was saved, emailed, or attached — output it inline only."""
 
 
-# ---------------------------------------------------------------------------
-# § 6 – Behavior (always included)
-# ---------------------------------------------------------------------------
-
 _BEHAVIOR = """\
 ## Behavior
 
@@ -195,10 +170,6 @@ _BEHAVIOR = """\
 - Be accurate, professional, and concise.
 - When uncertain, say so. Never speculate and present it as fact."""
 
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 def build_system_prompt(
     *,
@@ -225,45 +196,30 @@ def build_system_prompt(
     """
     sections: list[str] = []
 
-    # 1. Tool availability — always first, always authoritative
     sections.append(_tool_availability_block(kb=tool_kb, internet=tool_internet))
-
-    # 2. Role
     sections.append(_role_block(company_name, custom_role))
 
-    # 3. Tool usage guide (skipped when no tools)
     guide = _tool_guide_block(kb=tool_kb, internet=tool_internet)
     if guide:
         sections.append(guide)
 
-    # 4. Citations (skipped when no tools)
     if tool_kb or tool_internet:
         sections.append(_CITATIONS)
 
-    # 5. Output format
     sections.append(_OUTPUT_FORMAT)
-
-    # 6. Behavior
     sections.append(_BEHAVIOR)
 
-    # 7. Guardrails (admin-set, injected verbatim)
     if guardrails.strip():
         sections.append(f"## Guardrails\n\n{guardrails.strip()}")
 
-    # 8. Guidelines (admin-set, injected verbatim)
     if guidelines.strip():
         sections.append(f"## Guidelines\n\n{guidelines.strip()}")
 
-    # 9. Active persona (per-request)
     if persona.strip():
         sections.append(f"## Active Persona\n\n{persona.strip()}")
 
     return "\n\n---\n\n".join(sections)
 
-
-# ---------------------------------------------------------------------------
-# Backwards-compat shims used by existing agent CLI / tests
-# ---------------------------------------------------------------------------
 
 def compose_default_agent_body() -> str:
     """Backwards-compat: full prompt with both tools enabled, no company/custom text."""
@@ -275,14 +231,13 @@ def compose_agent_body_for_tool_flags(*, knowledge_base: bool, internet: bool) -
     return build_system_prompt(tool_kb=knowledge_base, tool_internet=internet)
 
 
-# Module-level constant used by agent CLI (build_agent fallback)
 agent_system_prompt = compose_default_agent_body()
 
 
 def default_agent_config_prompt_fields() -> dict[str, str]:
     """
     Default stored value for base_system_prompt.
-    Empty string = use the built-in dynamic prompt.
+    Empty string means use the built-in dynamic prompt.
     Admins may override via the settings UI.
     """
     return {"base_system_prompt": ""}

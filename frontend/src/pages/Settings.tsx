@@ -21,6 +21,7 @@ import {
   FiUsers,
 } from "react-icons/fi";
 import { SiHuggingface, SiNvidia, SiOpenai } from "react-icons/si";
+import tenstorrentLogo from "../assets/tenstorrent-logo.png";
 
 import {
   CHAT_PROVIDER_IDS as CHAT_PROVIDERS,
@@ -329,15 +330,17 @@ function OpenRouterBrandMark({ className = "size-6" }: { className?: string }) {
 function ProviderBrandMark({ id, className = "size-6" }: { id: ChatProviderId; className?: string }) {
   switch (id) {
     case "openai":
-      return <SiOpenai className={`${className} text-[#10A37F]`} aria-hidden />;
+      return <SiOpenai className={`${className} text-[color:var(--primary)]`} aria-hidden />;
     case "groq":
-      return <GroqBrandMark className={`${className} text-[#f55036]`} />;
+      return <GroqBrandMark className={`${className} text-[color:var(--primary)]`} />;
     case "openrouter":
-      return <OpenRouterBrandMark className={`${className} text-[#6366f1]`} />;
+      return <OpenRouterBrandMark className={`${className} text-[color:var(--primary)]`} />;
     case "huggingface":
-      return <SiHuggingface className={`${className} text-[#ffd21e]`} aria-hidden />;
+      return <SiHuggingface className={`${className} text-[color:var(--primary)]`} aria-hidden />;
     case "nvidia":
-      return <SiNvidia className={`${className} text-[#76b900]`} aria-hidden />;
+      return <SiNvidia className={`${className} text-[color:var(--primary)]`} aria-hidden />;
+    case "tenstorrent":
+      return <img src={tenstorrentLogo} alt="Tenstorrent" className={className} />;
     default:
       return null;
   }
@@ -357,10 +360,13 @@ type SettingsConfigPayload = {
   huggingface_api_key_last4: string | null;
   nvidia_api_key_configured: boolean;
   nvidia_api_key_last4: string | null;
+  tenstorrent_api_key_configured: boolean;
+  tenstorrent_api_key_last4: string | null;
   groq_openai_base_url: string;
   openrouter_openai_base_url: string;
   huggingface_openai_base_url: string;
   nvidia_openai_base_url: string;
+  tenstorrent_openai_base_url: string;
   openai_chat_base_url: string;
   qdrant_url: string;
   qdrant_collection: string;
@@ -373,6 +379,7 @@ type SettingsConfigPayload = {
   openrouter_chat_model_options: string[];
   huggingface_chat_model_options: string[];
   nvidia_chat_model_options: string[];
+  tenstorrent_chat_model_options: string[];
   openai_embed_model_options: string[];
   chat_model_aliases: ChatModelAliasRow[];
   smtp: {
@@ -393,6 +400,7 @@ function providerLabel(p: string): string {
   if (x === "openrouter") return "OpenRouter";
   if (x === "huggingface") return "Hugging Face";
   if (x === "nvidia") return "NVIDIA NIM";
+  if (x === "tenstorrent") return "Tenstorrent (Local)";
   return p;
 }
 
@@ -416,6 +424,7 @@ function chatCatalogForProvider(provider: string, c: SettingsConfigPayload): str
   if (p === "openrouter") return catalogArray(c.openrouter_chat_model_options);
   if (p === "huggingface") return catalogArray(c.huggingface_chat_model_options);
   if (p === "nvidia") return catalogArray(c.nvidia_chat_model_options);
+  if (p === "tenstorrent") return catalogArray(c.tenstorrent_chat_model_options);
   return catalogArray(c.openai_chat_model_options);
 }
 
@@ -448,10 +457,12 @@ function ConfigPanel({
   const [openrouterKey, setOpenrouterKey] = useState("");
   const [hfKey, setHfKey] = useState("");
   const [nvidiaKey, setNvidiaKey] = useState("");
+  const [tenstorrentKey, setTenstorrentKey] = useState("");
   const [groqBaseUrl, setGroqBaseUrl] = useState("");
   const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState("");
   const [hfBaseUrl, setHfBaseUrl] = useState("");
   const [nvidiaBaseUrl, setNvidiaBaseUrl] = useState("");
+  const [tenstorrentBaseUrl, setTenstorrentBaseUrl] = useState("");
   const [openaiConfigured, setOpenaiConfigured] = useState(false);
   const [openaiLast4, setOpenaiLast4] = useState<string | null>(null);
   const [groqConfigured, setGroqConfigured] = useState(false);
@@ -462,6 +473,8 @@ function ConfigPanel({
   const [hfLast4, setHfLast4] = useState<string | null>(null);
   const [nvidiaConfigured, setNvidiaConfigured] = useState(false);
   const [nvidiaLast4, setNvidiaLast4] = useState<string | null>(null);
+  const [tenstorrentConfigured, setTenstorrentConfigured] = useState(false);
+  const [tenstorrentLast4, setTenstorrentLast4] = useState<string | null>(null);
   const [qdrantUrl, setQdrantUrl] = useState("");
   const [qdrantCollection, setQdrantCollection] = useState("");
   const [chunkSize, setChunkSize] = useState(512);
@@ -503,11 +516,14 @@ function ConfigPanel({
     setHfLast4(c.huggingface_api_key_last4);
     setNvidiaConfigured(c.nvidia_api_key_configured);
     setNvidiaLast4(c.nvidia_api_key_last4);
+    setTenstorrentConfigured(c.tenstorrent_api_key_configured);
+    setTenstorrentLast4(c.tenstorrent_api_key_last4);
     setOpenaiChatUrl(safeStr(c.openai_chat_base_url));
     setGroqBaseUrl(safeStr(c.groq_openai_base_url));
     setOpenrouterBaseUrl(safeStr(c.openrouter_openai_base_url));
     setHfBaseUrl(safeStr(c.huggingface_openai_base_url));
     setNvidiaBaseUrl(safeStr(c.nvidia_openai_base_url));
+    setTenstorrentBaseUrl(safeStr(c.tenstorrent_openai_base_url));
     setQdrantUrl(safeStr(c.qdrant_url));
     setQdrantCollection(safeStr(c.qdrant_collection));
     setChunkSize(c.ingest_chunk_size);
@@ -575,11 +591,13 @@ function ConfigPanel({
           openrouter_api_key: trimInput(openrouterKey) || undefined,
           huggingface_api_key: trimInput(hfKey) || undefined,
           nvidia_api_key: trimInput(nvidiaKey) || undefined,
+          tenstorrent_api_key: trimInput(tenstorrentKey) || undefined,
           openai_chat_base_url: trimInput(openaiChatUrl),
           groq_openai_base_url: trimInput(groqBaseUrl),
           openrouter_openai_base_url: trimInput(openrouterBaseUrl),
           huggingface_openai_base_url: trimInput(hfBaseUrl),
           nvidia_openai_base_url: trimInput(nvidiaBaseUrl),
+          tenstorrent_openai_base_url: trimInput(tenstorrentBaseUrl),
         }),
       });
       setOpenaiKey("");
@@ -587,6 +605,7 @@ function ConfigPanel({
       setOpenrouterKey("");
       setHfKey("");
       setNvidiaKey("");
+      setTenstorrentKey("");
       setModelKeyEditor(null);
       onNotify("API & endpoints saved.", null);
       await reloadConfig();
@@ -742,6 +761,10 @@ function ConfigPanel({
         setNvidiaKey("");
         if (cfg) setNvidiaBaseUrl(cfg.nvidia_openai_base_url);
         return;
+      case "tenstorrent":
+        setTenstorrentKey("");
+        if (cfg) setTenstorrentBaseUrl(cfg.tenstorrent_openai_base_url);
+        return;
     }
   }
 
@@ -757,6 +780,8 @@ function ConfigPanel({
         return { configured: hfConfigured, last4: hfLast4 };
       case "nvidia":
         return { configured: nvidiaConfigured, last4: nvidiaLast4 };
+      case "tenstorrent":
+        return { configured: tenstorrentConfigured, last4: tenstorrentLast4 };
     }
   }
 
@@ -905,6 +930,16 @@ function ConfigPanel({
                           autoComplete="new-password"
                         />
                       ) : null}
+                      {pid === "tenstorrent" ? (
+                        <input
+                          type="password"
+                          className="brand-input rounded-xl px-3 py-2"
+                          value={tenstorrentKey}
+                          onChange={(e) => setTenstorrentKey(e.target.value)}
+                          autoComplete="new-password"
+                          placeholder="JWT token or API key (leave blank if not required)"
+                        />
+                      ) : null}
                     </label>
                     {pid === "huggingface" ? (
                       <label className="flex min-w-0 flex-col gap-1.5 text-sm">
@@ -926,6 +961,21 @@ function ConfigPanel({
                           onChange={(e) => setNvidiaBaseUrl(e.target.value)}
                           spellCheck={false}
                         />
+                      </label>
+                    ) : null}
+                    {pid === "tenstorrent" ? (
+                      <label className="flex min-w-0 flex-col gap-1.5 text-sm">
+                        <span className="text-secondary font-medium">Inference server base URL</span>
+                        <input
+                          className="brand-input rounded-xl px-3 py-2 font-mono text-xs"
+                          value={tenstorrentBaseUrl}
+                          onChange={(e) => setTenstorrentBaseUrl(e.target.value)}
+                          spellCheck={false}
+                          placeholder="http://localhost:8000/v1"
+                        />
+                        <span className="text-muted text-xs leading-snug">
+                          Address of your tt-inference-server (OpenAI-compatible). Use the server IP and port, e.g. <span className="font-mono">http://10.0.49.151:8000/v1</span>.
+                        </span>
                       </label>
                     ) : null}
                   </div>

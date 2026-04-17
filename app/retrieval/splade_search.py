@@ -6,7 +6,7 @@ from app.retrieval.models import SearchResult
 from app.services.runtime_config import RuntimeModelConfig, qdrant_store_from_runtime
 
 
-def bm25_search(
+def splade_search(
     query: str,
     top_k: int = 5,
     *,
@@ -16,4 +16,4 @@ def bm25_search(
         return []
     store = qdrant_store_from_runtime(runtime_config)
     points = query_sparse(store, query, limit=top_k)
-    return [scored_point_to_search_result(p, "bm25") for p in points]
+    return [scored_point_to_search_result(p, "splade") for p in points]

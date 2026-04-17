@@ -15,18 +15,17 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "background_jobs",
-        sa.Column("celery_state", sa.String(32), nullable=True),
-    )
-    op.add_column(
-        "background_jobs",
-        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
-    )
-    op.add_column(
-        "background_jobs",
-        sa.Column("error_message", sa.Text(), nullable=True),
-    )
+    from sqlalchemy import inspect
+
+    conn = op.get_bind()
+    existing_cols = {col["name"] for col in inspect(conn).get_columns("background_jobs")}
+
+    if "celery_state" not in existing_cols:
+        op.add_column("background_jobs", sa.Column("celery_state", sa.String(32), nullable=True))
+    if "finished_at" not in existing_cols:
+        op.add_column("background_jobs", sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True))
+    if "error_message" not in existing_cols:
+        op.add_column("background_jobs", sa.Column("error_message", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

@@ -62,7 +62,7 @@ class IngestionResult(BaseModel):
     collection_name: str
     qdrant_points: int
     stages: list[IngestionStage]
-    bm25_cache_path: str = ""  # unused; retained for API compatibility
+    sparse_cache_path: str = ""
 
 
 ProgressCallback = Callable[[IngestionStage], None]
@@ -426,11 +426,22 @@ def ingest_file_paths(
             else qdrant.get_vector_store(),
         )
         try:
-            VectorStoreIndex(
-                nodes=nodes,
-                storage_context=storage_context,
-                embed_model=embed_model,
-            )
+            # Process nodes in batches to avoid memory spikes on large documents
+            batch_size = 64
+            for batch_idx in range(0, len(nodes), batch_size):
+                batch_end = min(batch_idx + batch_size, len(nodes))
+                batch_nodes = nodes[batch_idx:batch_end]
+                _log.info(
+                    "Indexing batch %d/%d (%d nodes)",
+                    batch_idx // batch_size + 1,
+                    (len(nodes) - 1) // batch_size + 1,
+                    len(batch_nodes),
+                )
+                VectorStoreIndex(
+                    nodes=batch_nodes,
+                    storage_context=storage_context,
+                    embed_model=embed_model,
+                )
         except Exception as exc:
             detail = _extract_qdrant_error_message(exc)
             _log.error("Qdrant vector upsert failed: %s", detail, exc_info=True)
@@ -487,7 +498,7 @@ def ingest_file_paths(
             collection_name=qdrant.collection_name,
             qdrant_points=qdrant.count(),
             stages=stages,
-            bm25_cache_path="",
+            sparse_cache_path="",
         )
     except Exception as exc:
         stages.append(

@@ -6,7 +6,7 @@ import argparse
 import json
 
 from app.config import QDRANT_HYBRID_ALPHA
-from app.retrieval.bm25_search import bm25_search
+from app.retrieval.splade_search import splade_search
 from app.retrieval.helpers import (
     build_embed_model,
     get_vector_index,
@@ -23,7 +23,7 @@ __all__ = [
     "ScoreKind",
     "SearchResult",
     "similarity_search",
-    "bm25_search",
+    "splade_search",
     "hybrid_search",
     "advanced_search",
 ]
@@ -33,7 +33,7 @@ def hybrid_search(
     query: str,
     top_k: int = 5,
     vector_top_k: int = 10,
-    bm25_top_k: int = 10,
+    sparse_top_k: int = 10,
     *,
     alpha: float | None = None,
     runtime_config: RuntimeModelConfig | None = None,
@@ -49,11 +49,11 @@ def hybrid_search(
             list(qvec),
             limit=top_k,
             dense_limit=vector_top_k,
-            sparse_limit=bm25_top_k,
+            sparse_limit=sparse_top_k,
             dense_weight=dense_w,
         )
         return [
-            scored_point_to_search_result(p, "hybrid", matched_by=("vector", "bm25"))
+            scored_point_to_search_result(p, "hybrid", matched_by=("vector", "splade"))
             for p in points
         ]
 
@@ -66,7 +66,7 @@ def advanced_search(
     query: str,
     top_k: int = 5,
     vector_top_k: int = 10,
-    bm25_top_k: int = 10,
+    sparse_top_k: int = 10,
     *,
     alpha: float | None = None,
     runtime_config: RuntimeModelConfig | None = None,
@@ -75,7 +75,7 @@ def advanced_search(
         query=query,
         top_k=top_k,
         vector_top_k=vector_top_k,
-        bm25_top_k=bm25_top_k,
+        sparse_top_k=sparse_top_k,
         alpha=alpha,
         runtime_config=runtime_config,
     )
@@ -84,12 +84,7 @@ def advanced_search(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Search the indexed knowledge base.")
     parser.add_argument("query", help="Search query.")
-    parser.add_argument(
-        "--top-k",
-        type=int,
-        default=5,
-        help="Number of results to return.",
-    )
+    parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument(
         "--hybrid",
         action="store_true",

@@ -1,0 +1,12 @@
+# Build output (rebuilt inside Docker)
+dist
+node_modules
+
+# Local env
+.env
+.env.*
+
+# Editor / OS
+.vscode/
+.DS_Store
+*.log

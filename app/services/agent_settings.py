@@ -4,17 +4,6 @@ Agent configuration loader.
 Reads the single JSON config row (agent_config_json) from the database,
 migrates legacy rows when present, and builds the system prompt via
 app.agent.prompts.build_system_prompt.
-
-Prompt assembly order (enforced inside build_system_prompt):
-  1. Tool availability block   — always first, server-side flags
-  2. Role                      — company name + optional admin override
-  3. Tool usage guide          — only when tools are enabled
-  4. Citations                 — only when tools are enabled
-  5. Output format
-  6. Behavior
-  7. Guardrails                — admin-set, verbatim
-  8. Guidelines                — admin-set, verbatim
-  9. Active persona            — per-request
 """
 
 from __future__ import annotations
@@ -44,10 +33,6 @@ _LEGACY_KEYS = (
 )
 
 
-# ---------------------------------------------------------------------------
-# Default config shape
-# ---------------------------------------------------------------------------
-
 def default_agent_config() -> dict[str, Any]:
     """Return the default agent config document."""
     return {
@@ -60,10 +45,6 @@ def default_agent_config() -> dict[str, Any]:
         **default_agent_config_prompt_fields(),
     }
 
-
-# ---------------------------------------------------------------------------
-# Persistence helpers
-# ---------------------------------------------------------------------------
 
 def _read_row(db: Session, key: str) -> AppSetting | None:
     return db.get(AppSetting, key)
@@ -81,13 +62,12 @@ def _legacy_flag(row: AppSetting | None, *, default: bool) -> bool:
 
 
 def _migrate_legacy_to_json(db: Session) -> dict[str, Any]:
-    """One-time migration: read legacy individual rows → single JSON row."""
+    """One-time migration: read legacy individual rows into a single JSON row."""
     cfg = default_agent_config()
 
     row_base = _read_row(db, "agent_base_system_prompt")
     if row_base and row_base.value:
         stored = str(row_base.value).strip()
-        # Discard if it is just the old shipped default (which referenced disabled tools)
         if stored and stored != compose_default_agent_body():
             cfg["base_system_prompt"] = stored
 
@@ -163,10 +143,6 @@ def save_agent_config_dict(db: Session, cfg: dict[str, Any], *, commit: bool = T
         db.commit()
 
 
-# ---------------------------------------------------------------------------
-# Config field accessors
-# ---------------------------------------------------------------------------
-
 def load_tool_knowledge_base_enabled(db: Session) -> bool:
     return bool(load_agent_config_dict(db).get("tool_knowledge_base", True))
 
@@ -192,25 +168,19 @@ def load_guidelines_text(db: Session) -> str:
 def _load_custom_role(db: Session) -> str:
     """
     Return admin-customised role text if it differs from the built-in default.
-    An empty string means 'use the built-in role description'.
+    An empty string means use the built-in role description.
     """
     cfg = load_agent_config_dict(db)
     stored = str(cfg.get("base_system_prompt") or "").strip()
     if not stored:
-        # Also check the environment variable override
         env_val = (os.environ.get("AGENT_BASE_SYSTEM_PROMPT") or "").strip()
         if env_val and env_val != compose_default_agent_body():
             return env_val
         return ""
-    # Discard if it is literally the old shipped default
     if stored == compose_default_agent_body():
         return ""
     return stored
 
-
-# ---------------------------------------------------------------------------
-# Tool list builder
-# ---------------------------------------------------------------------------
 
 def build_agent_tools_list(
     db: Session,
@@ -241,10 +211,6 @@ def build_agent_tools_list(
     return tools
 
 
-# ---------------------------------------------------------------------------
-# Persona loader
-# ---------------------------------------------------------------------------
-
 def _load_persona_prompt(db: Session, persona_id: UUID | None) -> str:
     if persona_id is None:
         return ""
@@ -254,17 +220,8 @@ def _load_persona_prompt(db: Session, persona_id: UUID | None) -> str:
     return persona.system_prompt.strip()
 
 
-# ---------------------------------------------------------------------------
-# System prompt assembly  (single entry-point for agent creation)
-# ---------------------------------------------------------------------------
-
 def resolve_full_system_prompt(db: Session, *, persona_id: UUID | None = None) -> str:
-    """
-    Build the complete agent system prompt from persisted config.
-
-    Delegates all ordering and composition to build_system_prompt so the
-    tool-availability block is always injected first.
-    """
+    """Build the complete agent system prompt from persisted config."""
     cfg = load_agent_config_dict(db)
 
     return build_system_prompt(
@@ -277,10 +234,6 @@ def resolve_full_system_prompt(db: Session, *, persona_id: UUID | None = None) -
         persona=_load_persona_prompt(db, persona_id),
     )
 
-
-# ---------------------------------------------------------------------------
-# Backwards-compat aliases (used by agent.py / chat routes / older tests)
-# ---------------------------------------------------------------------------
 
 def resolve_chat_system_prompt(db: Session) -> str:
     """Alias kept for backwards compatibility."""

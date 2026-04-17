@@ -24,7 +24,7 @@ from app.ingestion.tasks import (
     reindex_document_task,
     sync_stale_documents_task,
 )
-from app.retrieval.retrieval import advanced_search, bm25_search, similarity_search
+from app.retrieval.retrieval import advanced_search, splade_search, similarity_search
 from app.services.job_status import (
     effective_celery_status,
     effective_failed_bool,
@@ -366,18 +366,18 @@ def similarity_document_search(
     return RetrievalResponse(results=results)
 
 
-@router.post("/search/bm25", response_model=RetrievalResponse)
-def bm25_document_search(
+@router.post("/search/splade", response_model=RetrievalResponse)
+def splade_document_search(
     payload: RetrievalRequest,
     user: User | None = Depends(get_request_user_optional),
     db: Session = Depends(get_db),
 ) -> RetrievalResponse:
-    if not user_can_use_search_mode(user, SearchMode.bm25):
-        raise HTTPException(status_code=403, detail="BM25 search requires pro or admin")
+    if not user_can_use_search_mode(user, SearchMode.splade):
+        raise HTTPException(status_code=403, detail="Splade search requires pro or admin")
     _quota_check(user, db)
     runtime_config = load_runtime_model_config(db)
-    results = bm25_search(query=payload.query, top_k=payload.top_k, runtime_config=runtime_config)
-    _quota_commit(user, db, "POST /api/documents/search/bm25")
+    results = splade_search(query=payload.query, top_k=payload.top_k, runtime_config=runtime_config)
+    _quota_commit(user, db, "POST /api/documents/search/splade")
     return RetrievalResponse(results=results)
 
 
@@ -395,7 +395,7 @@ def advanced_document_search(
         query=payload.query,
         top_k=payload.top_k,
         vector_top_k=payload.vector_top_k,
-        bm25_top_k=payload.bm25_top_k,
+        sparse_top_k=payload.sparse_top_k,
         alpha=payload.hybrid_alpha,
         runtime_config=runtime_config,
     )

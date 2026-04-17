@@ -19,32 +19,32 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("users", sa.Column("first_name", sa.String(length=120), nullable=True))
-    op.add_column("users", sa.Column("last_name", sa.String(length=120), nullable=True))
+    from sqlalchemy import inspect
 
-    op.create_table(
-        "password_reset_tokens",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("token_hash", sa.String(length=64), nullable=False),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        "ix_password_reset_tokens_user_id",
-        "password_reset_tokens",
-        ["user_id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_password_reset_tokens_token_hash",
-        "password_reset_tokens",
-        ["token_hash"],
-        unique=False,
-    )
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    existing_tables = inspector.get_table_names()
+    user_cols = {col["name"] for col in inspector.get_columns("users")}
+
+    if "first_name" not in user_cols:
+        op.add_column("users", sa.Column("first_name", sa.String(length=120), nullable=True))
+    if "last_name" not in user_cols:
+        op.add_column("users", sa.Column("last_name", sa.String(length=120), nullable=True))
+
+    if "password_reset_tokens" not in existing_tables:
+        op.create_table(
+            "password_reset_tokens",
+            sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column("token_hash", sa.String(length=64), nullable=False),
+            sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+        )
+        op.create_index("ix_password_reset_tokens_user_id", "password_reset_tokens", ["user_id"], unique=False)
+        op.create_index("ix_password_reset_tokens_token_hash", "password_reset_tokens", ["token_hash"], unique=False)
 
 
 def downgrade() -> None:

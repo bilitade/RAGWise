@@ -326,7 +326,7 @@ export default function Documents({
       const endpoint = `/api/documents/search/${retrievalMode}`;
       const payload =
         retrievalMode === "advanced"
-          ? { query: retrievalQuery, top_k: 5, vector_top_k: 10, bm25_top_k: 10 }
+          ? { query: retrievalQuery, top_k: 5, vector_top_k: 10, sparse_top_k: 10 }
           : { query: retrievalQuery, top_k: 5 };
       const result = await fetchJson<{ results: RetrievalResult[] }>(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
@@ -537,8 +537,8 @@ export default function Documents({
       icon: <FiZap className="size-4" strokeWidth={2.25} />,
     },
     {
-      id: "bm25",
-      label: "BM25",
+      id: "splade",
+      label: "SPLADE",
       desc: "Keyword ranking — precise term matching.",
       icon: <FiAlignLeft className="size-4" strokeWidth={2.25} />,
     },

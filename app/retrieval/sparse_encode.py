@@ -28,7 +28,9 @@ def encode_sparse_texts(texts: list[str]) -> tuple[list[list[int]], list[list[fl
     if not texts:
         return [], []
     model = _get_sparse_model()
-    embeddings = list(model.embed(texts, batch_size=min(256, max(1, len(texts)))))
+    # Use larger batch size for faster processing (but respect GPU memory limits)
+    batch_size = min(512, max(1, len(texts)))
+    embeddings = list(model.embed(texts, batch_size=batch_size))
     indices: list[list[int]] = []
     values: list[list[float]] = []
     for emb in embeddings:

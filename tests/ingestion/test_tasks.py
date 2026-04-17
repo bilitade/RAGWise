@@ -128,7 +128,7 @@ def test_ingest_documents_task_emits_stage_history(
                     details={"documents_indexed": 1, "nodes_indexed": 3},
                 )
             ],
-            bm25_cache_path="",
+            sparse_cache_path="",
         )
 
     monkeypatch.setattr("app.ingestion.tasks.ingest_documents", fake_ingest_documents)

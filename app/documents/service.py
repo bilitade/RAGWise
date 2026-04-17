@@ -216,7 +216,7 @@ def reindex_stale_documents(
     chunk_overlap: int | None = None,
     runtime_config: RuntimeModelConfig | None = None,
 ) -> IngestionResult:
-    """Reindex every file whose content differs from the last successful index (vectors + BM25 in one run)."""
+    """Reindex every file whose content differs from the last successful index (dense + Splade in one run)."""
     stale_paths: list[Path] = []
     for doc in list_documents(db):
         if not doc.needs_reindex:
@@ -244,7 +244,7 @@ def reindex_stale_documents(
                     details={"stale_paths": 0},
                 )
             ],
-            bm25_cache_path="",
+            sparse_cache_path="",
         )
 
     result = ingest_file_paths(

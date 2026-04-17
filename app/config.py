@@ -126,6 +126,12 @@ NVIDIA_OPENAI_BASE_URL = (
     get_env("NVIDIA_OPENAI_BASE_URL", "https://integrate.api.nvidia.com/v1") or "https://integrate.api.nvidia.com/v1"
 ).rstrip("/")
 
+# Tenstorrent local inference server (OpenAI-compatible).
+# Default points to the demo cluster; override with any running tt-inference-server address.
+TENSTORRENT_OPENAI_BASE_URL = (
+    get_env("TENSTORRENT_OPENAI_BASE_URL", "http://localhost:8000/v1") or "http://localhost:8000/v1"
+).rstrip("/")
+
 COMPANY_NAME = (get_env("COMPANY_NAME") or "").strip()
 
 API_HOST = get_env("API_HOST", "0.0.0.0")
@@ -142,7 +148,7 @@ INGEST_CHUNK_OVERLAP = get_int_env("INGEST_CHUNK_OVERLAP", 64)
 
 DATABASE_URL = get_env(
     "DATABASE_URL",
-    "postgresql+psycopg2://rag:rag@localhost:5432/rag_deep_agent",
+    "postgresql+psycopg2://rag:rag@localhost:5432/ragwise",
 )
 JWT_SECRET = get_env("JWT_SECRET", "change-me-in-production-use-long-random-string")
 JWT_ALGORITHM = (get_env("JWT_ALGORITHM", "HS256") or "HS256").strip()
@@ -165,7 +171,7 @@ APP_LOG_FILE = _env_nonempty("APP_LOG_FILE", str(PROJECT_ROOT / "logs" / "app.lo
 
 LANGCHAIN_TRACING_V2 = get_env("LANGCHAIN_TRACING_V2", "false").lower() in ("1", "true", "yes")
 LANGCHAIN_API_KEY = get_env("LANGCHAIN_API_KEY")
-LANGCHAIN_PROJECT = get_env("LANGCHAIN_PROJECT", "rag-deep-agent")
+LANGCHAIN_PROJECT = get_env("LANGCHAIN_PROJECT", "ragwise")
 LANGCHAIN_ENDPOINT = get_env("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
 LANGSMITH_WORKSPACE_ID = get_env("LANGSMITH_WORKSPACE_ID")
 

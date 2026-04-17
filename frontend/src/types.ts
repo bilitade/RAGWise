@@ -12,7 +12,7 @@ export type MeUser = {
     monthly_request_limit: number | null;
     requests_this_period: number;
 };
-export type RetrievalMode = "similarity" | "bm25" | "advanced";
+export type RetrievalMode = "similarity" | "splade" | "advanced";
 export type AppRoute =
     | "/"
     | "/documents"
