@@ -1,24 +1,16 @@
-# Deploy to AWS EC2
+# Deployment Guide — AWS EC2
 
-No registry. No DockerHub. No IAM keys.
-GitHub pushes code → EC2 builds and runs it.
+Production deployment of RagWise on a single EC2 instance. Build and run everything from source.
 
 ---
 
-## How it works
+## Prerequisites
 
-```
-  git push main
-       │
-       ▼
-  GitHub Actions
-    SSH into EC2
-    git pull
-    docker compose up --build -d
-       │
-       ▼
-  http://<EC2-PUBLIC-IP>
-```
+- AWS account
+- EC2 instance (Ubuntu 22.04 LTS, t3.small or larger, 50 GB storage)
+- SSH key (`.pem` file)
+- OpenAI API key
+- HuggingFace token (for SPLADE model)
 
 ---
 
@@ -30,43 +22,86 @@ AWS Console → EC2 → **Launch instance**
 |---|---|
 | Name | ragwise |
 | AMI | Ubuntu 22.04 LTS |
-| Instance type | t3.small |
+| Instance type | t3.small (minimum) |
 | Key pair | Create new → download `.pem` |
-| Storage | 20 GB gp3 |
+| Storage | 50 GB gp3 |
 
-**Network settings → Edit → Add inbound rules:**
+**Security group inbound rules:**
 
 | Type | Protocol | Port | Source |
 |---|---|---|---|
-| SSH | TCP | 22 | My IP |
+| SSH | TCP | 22 | Anywhere (0.0.0.0/0) |
 | HTTP | TCP | 80 | Anywhere (0.0.0.0/0) |
 
-Launch and copy the **Public IPv4 address**.
+Note the **Public IPv4 address**.
 
 ---
 
-## Step 2 — Bootstrap the EC2
+## Step 2 — Bootstrap the instance
+
+SSH in:
 
 ```bash
-# SSH in
-ssh -i your-key.pem ubuntu@<EC2-PUBLIC-IP>
+ssh -i ~/path/to/your-key.pem ubuntu@<EC2-PUBLIC-IP>
+```
 
-# Install Docker + add 2 GB swap
-curl -fsSL https://raw.githubusercontent.com/<your-github-username>/ragwise/main/scripts/ec2-setup.sh \
-  | sudo bash
+Install Docker and add 2 GB swap:
 
-# Re-login so docker group takes effect
+```bash
+sudo apt-get update && sudo apt-get upgrade -y
+
+# Install Docker
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Add user to docker group
+sudo usermod -aG docker ubuntu
+
+# Add 2 GB swap
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Log out and back in:
+
+```bash
 exit
-ssh -i your-key.pem ubuntu@<EC2-PUBLIC-IP>
+ssh -i ~/path/to/your-key.pem ubuntu@<EC2-PUBLIC-IP>
+```
+
+Activate the docker group:
+
+```bash
+newgrp docker
 ```
 
 ---
 
-## Step 3 — Clone repo and create secrets file
+## Step 3 — Clone the repo
 
 ```bash
-git clone https://github.com/<your-github-username>/ragwise.git /opt/ragwise
+sudo mkdir -p /opt/ragwise
+sudo chown ubuntu:ubuntu /opt/ragwise
+git clone https://github.com/bilitade/RAGWise.git /opt/ragwise
 cd /opt/ragwise
+```
+
+---
+
+## Step 4 — Create secrets file
+
+```bash
 nano .env.docker
 ```
 
@@ -74,87 +109,186 @@ Paste and fill in:
 
 ```env
 OPENAI_API_KEY=sk-...
-JWT_SECRET=
-SETTINGS_SECRET_KEY=
-POSTGRES_PASSWORD=
-HF_TOKEN=
+JWT_SECRET=<run: openssl rand -hex 32>
+SETTINGS_SECRET_KEY=<run: openssl rand -hex 32>
+POSTGRES_PASSWORD=<strong-password>
+HF_TOKEN=<your-hf-token>
 POSTGRES_USER=raguser
 POSTGRES_DB=ragdb
 APP_ENV=production
-API_CORS_ORIGINS=http://<EC2-PUBLIC-IP>
 LANGCHAIN_TRACING_V2=false
 ```
 
-Generate `JWT_SECRET` and `SETTINGS_SECRET_KEY` (run twice):
+Save: `Ctrl+X → Y → Enter`
+
+Generate secrets on your local machine:
 
 ```bash
 openssl rand -hex 32
 ```
 
-Save: `Ctrl+X → Y → Enter`
+Run twice, use each output for `JWT_SECRET` and `SETTINGS_SECRET_KEY`.
 
 ---
 
-## Step 4 — Add GitHub Secrets
-
-Repo → **Settings → Secrets and variables → Actions → New repository secret**
-
-| Secret | Value |
-|---|---|
-| `EC2_HOST` | Your EC2 public IP |
-| `EC2_SSH_KEY` | Full contents of your `.pem` file |
-| `HF_TOKEN` | Your HuggingFace token |
-
-**How to get the `.pem` contents:**
+## Step 5 — Build and deploy
 
 ```bash
-cat your-key.pem
+docker compose up --build -d
 ```
 
-Copy everything including `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----`.
+First build takes ~15 minutes. All 7 containers should reach healthy state:
+
+```bash
+docker ps
+```
+
+All containers should show `Up` or `Healthy`.
 
 ---
 
-## Step 5 — Push and deploy
+## Access the application
 
-```bash
-git add .
-git commit -m "deploy"
-git push origin main
-```
-
-Watch it: **GitHub repo → Actions tab**
-
-| Phase | Time |
-|---|---|
-| EC2 git pull | ~15 sec |
-| Docker build (first time) | ~10–15 min |
-| Containers up | ~2 min |
-
-When the action goes green, open:
+Open your browser:
 
 ```
 http://<EC2-PUBLIC-IP>
 ```
 
----
-
-## After your demo — stop all charges
-
-EC2 console → select instance → **Instance state → Terminate**
+You should see the RagWise UI.
 
 ---
 
-## Useful commands on EC2
+## Stop and restart the instance
+
+### Stop (pauses compute charges, keeps storage)
+
+AWS Console → EC2 → Instances → select your instance → **Instance state → Stop**
+
+### Restart (resumes with all data intact)
+
+AWS Console → EC2 → Instances → select your instance → **Instance state → Start**
+
+The public IP may change. Check the new IP in the AWS Console.
+
+### Reconnect after restart
 
 ```bash
-# Check all 7 containers are running
+ssh -i ~/path/to/your-key.pem ubuntu@<NEW-EC2-PUBLIC-IP>
+cd /opt/ragwise
+
+# Containers auto-restart; verify they're up
+docker ps
+```
+
+All data in volumes persists across stop/start cycles.
+
+---
+
+## Useful commands
+
+```bash
+# Check container status
 docker ps
 
-# Live logs
+# View live logs
 docker logs ragwise-api -f
 docker logs ragwise-worker -f
 
-# Restart one service
-docker compose restart api
+# Restart all containers
+docker compose restart
+
+# Stop all containers (keeps data)
+docker compose stop
+
+# Stop and remove containers (keeps volumes)
+docker compose down
+
+# View disk usage
+docker system df
+
+# Free up space
+docker image prune -f
+```
+
+---
+
+## Troubleshooting
+
+**Containers failing to start?**
+
+```bash
+docker compose logs
+docker logs ragwise-api
+docker logs ragwise-worker
+```
+
+**Out of disk space?**
+
+```bash
+df -h
+docker system df
+docker image prune -a --volumes
+```
+
+If still full, expand the EBS volume via AWS Console:
+
+```bash
+sudo growpart /dev/nvme0n1 1
+sudo resize2fs /dev/nvme0n1p1
+```
+
+**Need to redeploy code?**
+
+```bash
+cd /opt/ragwise
+git pull origin main
+docker compose up --build -d
+```
+
+---
+
+## Costs
+
+| Component | Cost |
+|---|---|
+| t3.small (compute) | $0.0208/hr |
+| 50 GB EBS (if stopped) | $0.10/month |
+
+**2-hour demo:** ~$0.04  
+**1 week running:** ~$3.50  
+
+### Permanent shutdown
+
+Terminate the instance to stop all charges:
+
+AWS Console → EC2 → Instances → select instance → **Instance state → Terminate**
+
+---
+
+## Architecture
+
+```
+  ┌─────────────────────────────────┐
+  │           Browser               │
+  │    http://<EC2-PUBLIC-IP>       │
+  └─────────────────┬───────────────┘
+                    │ :80
+  ┌─────────────────▼───────────────┐
+  │              Nginx              │
+  │  /      →   React SPA           │
+  │  /api/  →   FastAPI  :8000      │
+  └─────────────────┬───────────────┘
+                    │
+  ┌─────────────────▼───────────────┐
+  │            FastAPI              │
+  │  ├─ PostgreSQL   users · jobs   │
+  │  ├─ Qdrant       vectors        │
+  │  └─ Redis        task broker    │
+  └─────────────────┬───────────────┘
+                    │
+  ┌─────────────────▼───────────────┐
+  │          Celery Worker          │
+  │  parse → chunk → embed → index  │
+  └─────────────────────────────────┘
 ```
