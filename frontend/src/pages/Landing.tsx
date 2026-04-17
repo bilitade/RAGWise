@@ -234,7 +234,7 @@ function ArtifactBrowserPreview() {
           <span className="size-3 rounded-full bg-[color-mix(in_srgb,var(--warning)_70%,#555)]" />
           <span className="size-3 rounded-full bg-[color-mix(in_srgb,var(--success)_55%,#555)]" />
         </div>
-        <span className="text-muted truncate font-mono text-[11px] tracking-wide">app.example.com / chat</span>
+        <span className="text-muted truncate font-mono text-[11px] tracking-wide">ragwise.com / chat</span>
       </div>
       <div className="space-y-4 p-4 sm:p-5">
         <div className="rounded-lg border border-[var(--border)] bg-[color-mix(in_srgb,var(--background)_75%,transparent)] px-3 py-2.5">
