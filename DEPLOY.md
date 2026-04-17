@@ -1,163 +1,160 @@
-# Deployment Guide — AWS EC2 + DockerHub + GitHub Actions
+# Deploy to AWS EC2
 
-No paid AWS services required. Images are stored on DockerHub (free).
+No registry. No DockerHub. No IAM keys.
+GitHub pushes code → EC2 builds and runs it.
 
-## Overview
+---
+
+## How it works
 
 ```
-  GitHub push to main
-        │
-        ▼
+  git push main
+       │
+       ▼
   GitHub Actions
-    build backend  → push to DockerHub
-    build frontend → push to DockerHub
-        │
-        ▼ SSH
-  EC2 (Ubuntu)
-    docker compose pull
-    docker compose up -d
+    SSH into EC2
+    git pull
+    docker compose up --build -d
+       │
+       ▼
+  http://<EC2-PUBLIC-IP>
 ```
 
 ---
 
-## 1. DockerHub — Create repositories
+## Step 1 — Launch EC2
 
-Sign up at [hub.docker.com](https://hub.docker.com) if you don't have an account.
-
-Create two **public** repositories:
-
-| Repository |
-|---|
-| `<your-username>/ragwise` |
-| `<your-username>/ragwise-frontend` |
-
-Generate an access token: **Account Settings → Security → New Access Token** (read/write).
-
----
-
-## 2. EC2 — Launch Instance
-
-> **Instance note:** The real AWS Free Tier is t2.micro (1 GiB RAM) — too small for this stack.
-> For a 2-hour demo, use **t3.small** (2 GiB + 2 GiB swap = fine) or **t3.medium** (4 GiB).
-> Cost: t3.small ≈ $0.02/hr → **$0.04 total for 2 hours**.
+AWS Console → EC2 → **Launch instance**
 
 | Setting | Value |
 |---|---|
+| Name | ragwise |
 | AMI | Ubuntu 22.04 LTS |
-| Instance type | t3.small (demo) or t3.medium (comfortable) |
-| Key pair | Create or use existing — save the `.pem` file |
+| Instance type | t3.small |
+| Key pair | Create new → download `.pem` |
 | Storage | 20 GB gp3 |
 
-**Security group — inbound rules:**
+**Network settings → Edit → Add inbound rules:**
 
-| Port | Source | Purpose |
-|---|---|---|
-| 22 | Your IP only | SSH |
-| 80 | 0.0.0.0/0 | HTTP |
+| Type | Protocol | Port | Source |
+|---|---|---|---|
+| SSH | TCP | 22 | My IP |
+| HTTP | TCP | 80 | Anywhere (0.0.0.0/0) |
+
+Launch and copy the **Public IPv4 address**.
 
 ---
 
-## 3. EC2 — Bootstrap
+## Step 2 — Bootstrap the EC2
 
 ```bash
+# SSH in
 ssh -i your-key.pem ubuntu@<EC2-PUBLIC-IP>
 
-curl -fsSL https://raw.githubusercontent.com/<you>/ragwise/main/scripts/ec2-setup.sh \
+# Install Docker + add 2 GB swap
+curl -fsSL https://raw.githubusercontent.com/<your-github-username>/ragwise/main/scripts/ec2-setup.sh \
   | sudo bash
 
-# Log out and back in so the docker group takes effect
+# Re-login so docker group takes effect
 exit
 ssh -i your-key.pem ubuntu@<EC2-PUBLIC-IP>
 ```
 
 ---
 
-## 4. EC2 — Copy files and create secrets
+## Step 3 — Clone repo and create secrets file
 
 ```bash
-# From your local machine
-scp -i your-key.pem docker-compose.prod.yml ubuntu@<EC2-PUBLIC-IP>:/opt/ragwise/
+git clone https://github.com/<your-github-username>/ragwise.git /opt/ragwise
+cd /opt/ragwise
+nano .env.docker
 ```
 
-On the EC2, create the secrets file — **this never leaves the server**:
-
-```bash
-nano /opt/ragwise/.env.prod
-```
+Paste and fill in:
 
 ```env
 OPENAI_API_KEY=sk-...
-JWT_SECRET=<run: openssl rand -hex 32>
-SETTINGS_SECRET_KEY=<run: openssl rand -hex 32>
-POSTGRES_PASSWORD=<strong-password>
+JWT_SECRET=
+SETTINGS_SECRET_KEY=
+POSTGRES_PASSWORD=
+HF_TOKEN=
 POSTGRES_USER=raguser
 POSTGRES_DB=ragdb
 APP_ENV=production
+API_CORS_ORIGINS=http://<EC2-PUBLIC-IP>
 LANGCHAIN_TRACING_V2=false
 ```
 
+Generate `JWT_SECRET` and `SETTINGS_SECRET_KEY` (run twice):
+
+```bash
+openssl rand -hex 32
+```
+
+Save: `Ctrl+X → Y → Enter`
+
 ---
 
-## 5. GitHub — Add Secrets
+## Step 4 — Add GitHub Secrets
 
-**Settings → Secrets and variables → Actions → New repository secret**
+Repo → **Settings → Secrets and variables → Actions → New repository secret**
 
 | Secret | Value |
 |---|---|
-| `DOCKERHUB_USERNAME` | Your DockerHub username |
-| `DOCKERHUB_TOKEN` | DockerHub access token from step 1 |
-| `EC2_HOST` | Public IP of your EC2 |
+| `EC2_HOST` | Your EC2 public IP |
 | `EC2_SSH_KEY` | Full contents of your `.pem` file |
-| `HF_TOKEN` | HuggingFace token (for SPLADE model at build time) |
+| `HF_TOKEN` | Your HuggingFace token |
 
----
-
-## 6. Deploy
-
-Push to `main` — the pipeline triggers automatically:
-
-```
-build-and-push  (~8 min first run, ~2 min with cache)
-      └── deploy  (~30 sec)
-```
-
-Watch it at: **GitHub repo → Actions**
-
-Open `http://<EC2-PUBLIC-IP>` when done.
-
----
-
-## 7. Tear down after demo
-
-Stop billing immediately — go to EC2 console → **Stop** (or **Terminate**) the instance.
-
-Stopped instances still charge for EBS storage (~$0.10/month for 20 GB).
-Terminated instances charge nothing.
-
----
-
-## Rollback
+**How to get the `.pem` contents:**
 
 ```bash
-ssh -i your-key.pem ubuntu@<EC2-PUBLIC-IP>
-cd /opt/ragwise
-export DOCKERHUB_USERNAME=<your-username>
-export RAGWISE_TAG=<previous-git-sha>
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+cat your-key.pem
 ```
+
+Copy everything including `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----`.
+
+---
+
+## Step 5 — Push and deploy
+
+```bash
+git add .
+git commit -m "deploy"
+git push origin main
+```
+
+Watch it: **GitHub repo → Actions tab**
+
+| Phase | Time |
+|---|---|
+| EC2 git pull | ~15 sec |
+| Docker build (first time) | ~10–15 min |
+| Containers up | ~2 min |
+
+When the action goes green, open:
+
+```
+http://<EC2-PUBLIC-IP>
+```
+
+---
+
+## After your demo — stop all charges
+
+EC2 console → select instance → **Instance state → Terminate**
 
 ---
 
 ## Useful commands on EC2
 
 ```bash
-# Live logs
-docker compose -f /opt/ragwise/docker-compose.prod.yml logs -f api
-
-# Status
+# Check all 7 containers are running
 docker ps
 
-# Disk usage
-docker system df
+# Live logs
+docker logs ragwise-api -f
+docker logs ragwise-worker -f
+
+# Restart one service
+docker compose restart api
 ```
