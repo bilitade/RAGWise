@@ -66,6 +66,11 @@ services:
 
   api:
     container_name: ragwise-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HF_TOKEN: ${HF_TOKEN:-}
     image: ragwise:latest
     command:
       - uvicorn
@@ -88,9 +93,9 @@ services:
       API_RELOAD:            "false"
       API_CORS_ORIGINS:      "http://localhost,http://localhost:80"
       FASTEMBED_CACHE_PATH:  /app/model_cache
-      OMP_NUM_THREADS:       "4"
-      ONNX_NUM_THREADS:      "4"
-      ORT_NUM_THREADS:       "4"
+      OMP_NUM_THREADS:       "2"
+      ONNX_NUM_THREADS:      "2"
+      ORT_NUM_THREADS:       "2"
     volumes:
       - docs_data:/data/documents
     depends_on:
@@ -110,6 +115,11 @@ services:
 
   worker:
     container_name: ragwise-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HF_TOKEN: ${HF_TOKEN:-}
     image: ragwise:latest
     command:
       - celery
@@ -129,9 +139,9 @@ services:
       QDRANT_URL:            http://qdrant:6333
       QDRANT_TIMEOUT:        "30.0"
       FASTEMBED_CACHE_PATH:  /app/model_cache
-      OMP_NUM_THREADS:       "4"
-      ONNX_NUM_THREADS:      "4"
-      ORT_NUM_THREADS:       "4"
+      OMP_NUM_THREADS:       "2"
+      ONNX_NUM_THREADS:      "2"
+      ORT_NUM_THREADS:       "2"
     volumes:
       - docs_data:/data/documents
     mem_limit: 2g
@@ -147,7 +157,7 @@ services:
       dockerfile: Dockerfile
     image: ragwise-frontend:latest
     ports:
-      - "3080:80"
+      - "80:80"
     depends_on:
       api:
         condition: service_healthy
