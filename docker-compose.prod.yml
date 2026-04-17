@@ -1,0 +1,149 @@
+name: ragwise
+
+services:
+
+  postgres:
+    container_name: ragwise-postgres
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-ragdb}
+      POSTGRES_USER:     ${POSTGRES_USER:-raguser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-raguser} -d $${POSTGRES_DB:-ragdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    container_name: ragwise-redis
+    image: redis:8-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  qdrant:
+    container_name: ragwise-qdrant
+    image: qdrant/qdrant:v1.17.1
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333' 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  migrate:
+    container_name: ragwise-migrate
+    image: ${DOCKERHUB_USERNAME}/ragwise:${RAGWISE_TAG:-latest}
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-raguser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ragdb}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    container_name: ragwise-api
+    image: ${DOCKERHUB_USERNAME}/ragwise:${RAGWISE_TAG:-latest}
+    command:
+      - uvicorn
+      - app.api.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --workers
+      - "1"
+    env_file: .env.prod
+    environment:
+      DATABASE_URL:          postgresql+psycopg2://${POSTGRES_USER:-raguser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ragdb}
+      REDIS_URL:             redis://redis:6379/0
+      CELERY_BROKER_URL:     redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      QDRANT_URL:            http://qdrant:6333
+      API_HOST:              "0.0.0.0"
+      API_PORT:              "8000"
+      API_RELOAD:            "false"
+      FASTEMBED_CACHE_PATH:  /app/model_cache
+      OMP_NUM_THREADS:       "2"
+      ONNX_NUM_THREADS:      "2"
+      ORT_NUM_THREADS:       "2"
+    volumes:
+      - docs_data:/data/documents
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  worker:
+    container_name: ragwise-worker
+    image: ${DOCKERHUB_USERNAME}/ragwise:${RAGWISE_TAG:-latest}
+    command:
+      - celery
+      - -A
+      - app.worker.celery_app
+      - worker
+      - --loglevel=info
+      - --concurrency=1
+      - --pool=solo
+      - --prefetch-multiplier=1
+    env_file: .env.prod
+    environment:
+      DATABASE_URL:          postgresql+psycopg2://${POSTGRES_USER:-raguser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ragdb}
+      REDIS_URL:             redis://redis:6379/0
+      CELERY_BROKER_URL:     redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      QDRANT_URL:            http://qdrant:6333
+      QDRANT_TIMEOUT:        "30.0"
+      FASTEMBED_CACHE_PATH:  /app/model_cache
+      OMP_NUM_THREADS:       "2"
+      ONNX_NUM_THREADS:      "2"
+      ORT_NUM_THREADS:       "2"
+    volumes:
+      - docs_data:/data/documents
+    mem_limit: 2g
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    container_name: ragwise-frontend
+    image: ${DOCKERHUB_USERNAME}/ragwise-frontend:${RAGWISE_TAG:-latest}
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:
+  qdrant_data:
+  docs_data:
