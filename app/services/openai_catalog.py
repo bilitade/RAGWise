@@ -180,3 +180,19 @@ def embed_catalog_for_provider(provider: str) -> tuple[str, ...]:
     if p == "openrouter":
         return OPENROUTER_EMBED_MODEL_OPTIONS
     return OPENAI_EMBED_MODEL_OPTIONS
+
+
+# LlamaIndex OpenAIEmbedding validates ``model`` against a fixed enum; non-OpenAI ids use ``model_name``.
+_LLAMA_INDEX_EMBED_ENUM_FALLBACK = "text-embedding-3-small"
+
+
+def openai_embedding_model_args(model: str, embed_provider: str) -> dict[str, str]:
+    """Map stored embed config to OpenAIEmbedding constructor args."""
+    api_model = resolve_embed_model_id(model, embed_provider)
+    enum_model = resolve_embed_model_id(model, "openai")
+    if _canonical_embed_slug(model) is None:
+        enum_model = _LLAMA_INDEX_EMBED_ENUM_FALLBACK
+    args: dict[str, str] = {"model": enum_model}
+    if api_model != enum_model:
+        args["model_name"] = api_model
+    return args

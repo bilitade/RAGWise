@@ -111,7 +111,8 @@ def test_openrouter_embed_model_kwargs() -> None:
     kwargs = cfg.embed_model_kwargs()
     assert kwargs["api_key"] == "or-key"
     assert kwargs["api_base"] == "https://openrouter.ai/api/v1"
-    assert kwargs["model"] == "openai/text-embedding-3-small"
+    assert kwargs["model"] == "text-embedding-3-small"
+    assert kwargs["model_name"] == "openai/text-embedding-3-small"
 
 
 def test_openai_embed_model_kwargs_use_sdk_default() -> None:
@@ -130,7 +131,22 @@ def test_openrouter_embed_resolves_prefixed_model_id() -> None:
             openrouter_api_key="or-key",
         )
     )
-    assert cfg.embed_model_kwargs()["model"] == "openai/text-embedding-3-large"
+    kwargs = cfg.embed_model_kwargs()
+    assert kwargs["model"] == "text-embedding-3-large"
+    assert kwargs["model_name"] == "openai/text-embedding-3-large"
+
+
+def test_openrouter_embed_qwen_model_kwargs() -> None:
+    cfg = RuntimeModelConfig(
+        **_base_config_kwargs(
+            embed_provider="openrouter",
+            embed_model="qwen/qwen3-embedding-0.6b",
+            openrouter_api_key="or-key",
+        )
+    )
+    kwargs = cfg.embed_model_kwargs()
+    assert kwargs["model"] == "text-embedding-3-small"
+    assert kwargs["model_name"] == "qwen/qwen3-embedding-0.6b"
 
 
 def test_huggingface_uses_token_and_custom_base() -> None:

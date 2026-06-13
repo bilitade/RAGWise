@@ -30,7 +30,7 @@ from app.core.crypto import decrypt_secret
 from app.db.models import AppSetting
 from app.db.qdrant import QdrantConnectionConfig, QdrantStore
 from app.services.chat_model_settings import aliases_from_json_value, resolve_default_with_aliases
-from app.services.openai_catalog import resolve_embed_model_id
+from app.services.openai_catalog import openai_embedding_model_args
 
 KEY_OPENAI_API_KEY = "openai_api_key"
 KEY_DEFAULT_CHAT_MODEL = "default_chat_model"
@@ -174,9 +174,9 @@ class RuntimeModelConfig:
         return kwargs
 
     def embed_model_kwargs(self) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {
-            "model": resolve_embed_model_id(self.embed_model, self.embed_provider),
-        }
+        kwargs: dict[str, Any] = dict(
+            openai_embedding_model_args(self.embed_model, self.embed_provider),
+        )
         key = self.resolved_embed_api_key()
         if key:
             kwargs["api_key"] = key
