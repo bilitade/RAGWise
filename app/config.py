@@ -109,6 +109,8 @@ try:
 except ValueError:
     OPENAI_EMBED_DIMENSIONS = None
 MODEL_PROVIDER = get_env("MODEL_PROVIDER", "openai")
+EMBED_PROVIDER = get_env("EMBED_PROVIDER", "openai")
+OPENAI_EMBED_BASE_URL = (get_env("OPENAI_EMBED_BASE_URL") or "").strip().rstrip("/")
 
 # OpenAI-compatible chat API roots: env defaults; Admin PATCH persists overrides in app_settings (same pattern for all four).
 GROQ_OPENAI_BASE_URL = (get_env("GROQ_OPENAI_BASE_URL", "https://api.groq.com/openai/v1") or "https://api.groq.com/openai/v1").rstrip(

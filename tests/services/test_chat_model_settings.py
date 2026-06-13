@@ -13,7 +13,7 @@ from app.services.openai_catalog import MODEL_PROVIDER_OPTIONS
 
 
 def test_model_provider_options_matches_admin_ui_contract() -> None:
-    assert MODEL_PROVIDER_OPTIONS == ("openai", "groq", "openrouter", "huggingface", "nvidia")
+    assert MODEL_PROVIDER_OPTIONS == ("openai", "groq", "openrouter", "huggingface", "nvidia", "tenstorrent")
 
 
 def test_aliases_from_json_drops_invalid_and_dedupes() -> None:

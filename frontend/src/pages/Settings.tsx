@@ -348,6 +348,7 @@ function ProviderBrandMark({ id, className = "size-6" }: { id: ChatProviderId; c
 
 type SettingsConfigPayload = {
   model_provider: string;
+  embed_provider: string;
   default_chat_model: string;
   default_embed_model: string;
   openai_api_key_configured: boolean;
@@ -381,6 +382,9 @@ type SettingsConfigPayload = {
   nvidia_chat_model_options: string[];
   tenstorrent_chat_model_options: string[];
   openai_embed_model_options: string[];
+  openrouter_embed_model_options: string[];
+  embed_model_options: string[];
+  embed_provider_options: string[];
   chat_model_aliases: ChatModelAliasRow[];
   smtp: {
     host: string;
@@ -402,6 +406,54 @@ function providerLabel(p: string): string {
   if (x === "nvidia") return "NVIDIA NIM";
   if (x === "tenstorrent") return "Tenstorrent (Local)";
   return p;
+}
+
+type EmbedProviderId = "openai" | "openrouter";
+
+const EMBED_MODEL_VARIANTS: Record<string, Record<EmbedProviderId, string>> = {
+  "text-embedding-3-small": {
+    openai: "text-embedding-3-small",
+    openrouter: "openai/text-embedding-3-small",
+  },
+  "text-embedding-3-large": {
+    openai: "text-embedding-3-large",
+    openrouter: "openai/text-embedding-3-large",
+  },
+  "text-embedding-ada-002": {
+    openai: "text-embedding-ada-002",
+    openrouter: "openai/text-embedding-ada-002",
+  },
+};
+
+function canonicalEmbedSlug(model: string): string | null {
+  const m = model.trim();
+  if (!m) return null;
+  for (const [slug, variants] of Object.entries(EMBED_MODEL_VARIANTS)) {
+    if (m === slug || Object.values(variants).includes(m)) return slug;
+  }
+  return null;
+}
+
+function resolveEmbedModelId(model: string, provider: EmbedProviderId): string {
+  const m = model.trim();
+  if (!m) return m;
+  const slug = canonicalEmbedSlug(m);
+  if (slug && EMBED_MODEL_VARIANTS[slug]) {
+    return EMBED_MODEL_VARIANTS[slug][provider] ?? m;
+  }
+  if (provider === "openrouter" && !m.includes("/")) return `openai/${m}`;
+  if (provider === "openai" && m.startsWith("openai/")) return m.slice("openai/".length);
+  return m;
+}
+
+function embedCatalogForProvider(provider: string, c: SettingsConfigPayload): string[] {
+  const p = provider.trim().toLowerCase();
+  if (p === "openrouter") return catalogArray(c.openrouter_embed_model_options);
+  return catalogArray(c.openai_embed_model_options);
+}
+
+function isEmbedProviderId(p: string): p is EmbedProviderId {
+  return p === "openai" || p === "openrouter";
 }
 
 function catalogArray(raw: unknown): string[] {
@@ -449,6 +501,7 @@ function ConfigPanel({
   const [modelProvider, setModelProvider] = useState("");
   const [chatModel, setChatModel] = useState("");
   const [embedModel, setEmbedModel] = useState("");
+  const [embedProvider, setEmbedProvider] = useState<EmbedProviderId>("openai");
   const [modelKeyEditor, setModelKeyEditor] = useState<ChatProviderId | null>(null);
   const [embedModelOptions, setEmbedModelOptions] = useState<string[]>([]);
   const [openaiChatUrl, setOpenaiChatUrl] = useState("");
@@ -506,6 +559,10 @@ function ConfigPanel({
   function applyConfigPayload(c: SettingsConfigPayload) {
     setLoadedConfig(c);
     setEmbedModel(safeStr(c.default_embed_model));
+    const normEmbedProv = isEmbedProviderId(c.embed_provider?.trim().toLowerCase() ?? "")
+      ? (c.embed_provider.trim().toLowerCase() as EmbedProviderId)
+      : "openai";
+    setEmbedProvider(normEmbedProv);
     setOpenaiConfigured(c.openai_api_key_configured);
     setOpenaiLast4(c.openai_api_key_last4);
     setGroqConfigured(c.groq_api_key_configured);
@@ -545,7 +602,9 @@ function ConfigPanel({
     const normProv = adminUiChatProvider(c);
     setModelProvider(normProv);
     setChatModel(safeStr(c.default_chat_model));
-    setEmbedModelOptions(mergeOptionList(c.openai_embed_model_options, safeStr(c.default_embed_model)));
+    setEmbedModelOptions(
+      mergeOptionList(embedCatalogForProvider(normEmbedProv, c), safeStr(c.default_embed_model)),
+    );
     setChatModelsSavedFingerprint(
       chatModelSettingsFingerprint(
         normProv,
@@ -683,6 +742,7 @@ function ConfigPanel({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          embed_provider: embedProvider,
           default_embed_model: trimInput(embedModel) || undefined,
           qdrant_url: trimInput(qdrantUrl) || undefined,
           qdrant_collection: trimInput(qdrantCollection) || undefined,
@@ -1236,8 +1296,38 @@ function ConfigPanel({
   if (section === "retrieval") {
     return (
       <SectionCard title="Embeddings">
+        <p className="text-secondary mb-3 text-sm">
+          Choose whether dense embeddings call OpenAI directly or via OpenRouter. The same underlying model
+          (e.g. text-embedding-3-small) produces identical vectors — only the API route and model id prefix differ.
+        </p>
         <div className="grid gap-3 lg:grid-cols-2">
-          <div className="flex gap-3 sm:items-start lg:col-span-2">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-secondary font-medium">Embedding provider</span>
+            <select
+              className="brand-input rounded-xl px-3 py-2"
+              value={embedProvider}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (!isEmbedProviderId(next)) return;
+                setEmbedProvider(next);
+                setEmbedModel((prev) => resolveEmbedModelId(prev, next));
+                if (loadedConfig) {
+                  setEmbedModelOptions(
+                    mergeOptionList(embedCatalogForProvider(next, loadedConfig), resolveEmbedModelId(embedModel, next)),
+                  );
+                }
+              }}
+              aria-label="Embedding provider"
+            >
+              {(loadedConfig?.embed_provider_options ?? ["openai", "openrouter"]).map((p) => (
+                <option key={p} value={p}>
+                  {providerLabel(p)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="flex gap-3 sm:items-start">
             <OpenAIBrandMark className="mt-0.5" />
             <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
               <span className="text-secondary font-medium">Embedding model</span>

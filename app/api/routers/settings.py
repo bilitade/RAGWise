@@ -39,6 +39,7 @@ from app.services.agent_settings import (
     save_agent_config_dict,
 )
 from app.services.openai_catalog import (
+    EMBED_PROVIDER_OPTIONS,
     GROQ_CHAT_MODEL_OPTIONS,
     HUGGINGFACE_CHAT_MODEL_OPTIONS,
     MODEL_PROVIDER_OPTIONS,
@@ -46,12 +47,15 @@ from app.services.openai_catalog import (
     OPENAI_CHAT_MODEL_OPTIONS,
     OPENAI_EMBED_MODEL_OPTIONS,
     OPENROUTER_CHAT_MODEL_OPTIONS,
+    OPENROUTER_EMBED_MODEL_OPTIONS,
     TENSTORRENT_CHAT_MODEL_OPTIONS,
+    embed_catalog_for_provider,
 )
 from app.services.runtime_config import (
     KEY_CHAT_MODEL_ALIASES,
     KEY_DEFAULT_CHAT_MODEL,
     KEY_DEFAULT_EMBED_MODEL,
+    KEY_EMBED_PROVIDER,
     KEY_GROQ_API_KEY,
     KEY_GROQ_OPENAI_BASE_URL,
     KEY_HUGGINGFACE_API_KEY,
@@ -74,6 +78,7 @@ from app.services.runtime_config import (
     load_default_chunk_overlap,
     load_default_chunk_size,
     load_default_embed_model,
+    load_embed_provider,
     load_groq_api_key,
     load_groq_openai_base_url,
     load_huggingface_api_key,
@@ -165,8 +170,10 @@ def _config_response(db: Session) -> "SettingsConfigResponse":
     nv_plain = load_nvidia_api_key(db)
     tt_plain = load_tenstorrent_api_key(db)
     provider = load_model_provider(db)
+    embed_provider = load_embed_provider(db)
     return SettingsConfigResponse(
         model_provider=provider,
+        embed_provider=embed_provider,
         default_chat_model=load_default_chat_model(db),
         default_embed_model=load_default_embed_model(db),
         openai_api_key_configured=bool(openai_plain),
@@ -200,6 +207,9 @@ def _config_response(db: Session) -> "SettingsConfigResponse":
         nvidia_chat_model_options=list(NVIDIA_CHAT_MODEL_OPTIONS),
         tenstorrent_chat_model_options=list(TENSTORRENT_CHAT_MODEL_OPTIONS),
         openai_embed_model_options=list(OPENAI_EMBED_MODEL_OPTIONS),
+        openrouter_embed_model_options=list(OPENROUTER_EMBED_MODEL_OPTIONS),
+        embed_model_options=list(embed_catalog_for_provider(embed_provider)),
+        embed_provider_options=list(EMBED_PROVIDER_OPTIONS),
         chat_model_aliases=[
             ChatModelAliasOut(alias=a["alias"], provider=a["provider"], model_id=a["model_id"])
             for a in load_chat_model_aliases(db)
@@ -210,6 +220,7 @@ def _config_response(db: Session) -> "SettingsConfigResponse":
 
 class SettingsConfigResponse(BaseModel):
     model_provider: str
+    embed_provider: str
     default_chat_model: str
     default_embed_model: str
     openai_api_key_configured: bool
@@ -243,6 +254,9 @@ class SettingsConfigResponse(BaseModel):
     nvidia_chat_model_options: list[str]
     tenstorrent_chat_model_options: list[str]
     openai_embed_model_options: list[str]
+    openrouter_embed_model_options: list[str]
+    embed_model_options: list[str]
+    embed_provider_options: list[str]
     chat_model_aliases: list[ChatModelAliasOut]
     smtp: SmtpConfigOut
 
@@ -255,6 +269,7 @@ class ChatModelAliasPatchItem(BaseModel):
 
 class SettingsConfigPatch(BaseModel):
     model_provider: str | None = None
+    embed_provider: str | None = None
     default_chat_model: str | None = None
     default_embed_model: str | None = None
     openai_api_key: str | None = None
@@ -334,6 +349,11 @@ def patch_config(
         if prov not in MODEL_PROVIDER_OPTIONS:
             raise HTTPException(status_code=400, detail="Unsupported model_provider")
         _upsert(db, KEY_MODEL_PROVIDER, prov, is_secret=False)
+    if body.embed_provider is not None:
+        embed_prov = body.embed_provider.strip().lower()
+        if embed_prov not in EMBED_PROVIDER_OPTIONS:
+            raise HTTPException(status_code=400, detail="Unsupported embed_provider")
+        _upsert(db, KEY_EMBED_PROVIDER, embed_prov, is_secret=False)
     if body.default_chat_model is not None:
         _upsert(db, KEY_DEFAULT_CHAT_MODEL, body.default_chat_model.strip(), is_secret=False)
     if body.default_embed_model is not None:

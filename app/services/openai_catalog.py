@@ -117,8 +117,66 @@ TENSTORRENT_CHAT_MODEL_OPTIONS: tuple[str, ...] = (
     "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
 )
 
+EMBED_PROVIDER_OPTIONS: tuple[str, ...] = ("openai", "openrouter")
+
 OPENAI_EMBED_MODEL_OPTIONS: tuple[str, ...] = (
     "text-embedding-3-small",
     "text-embedding-3-large",
     "text-embedding-ada-002",
 )
+
+OPENROUTER_EMBED_MODEL_OPTIONS: tuple[str, ...] = (
+    "openai/text-embedding-3-small",
+    "openai/text-embedding-3-large",
+    "openai/text-embedding-ada-002",
+    "qwen/qwen3-embedding-0.6b",
+)
+
+# Same underlying OpenAI embed models — different API route ids per provider.
+_EMBED_MODEL_VARIANTS: dict[str, dict[str, str]] = {
+    "text-embedding-3-small": {
+        "openai": "text-embedding-3-small",
+        "openrouter": "openai/text-embedding-3-small",
+    },
+    "text-embedding-3-large": {
+        "openai": "text-embedding-3-large",
+        "openrouter": "openai/text-embedding-3-large",
+    },
+    "text-embedding-ada-002": {
+        "openai": "text-embedding-ada-002",
+        "openrouter": "openai/text-embedding-ada-002",
+    },
+}
+
+
+def _canonical_embed_slug(model: str) -> str | None:
+    m = (model or "").strip()
+    if not m:
+        return None
+    for slug, variants in _EMBED_MODEL_VARIANTS.items():
+        if m == slug or m in variants.values():
+            return slug
+    return None
+
+
+def resolve_embed_model_id(model: str, provider: str) -> str:
+    """Map a stored embed model id to the correct id for the active embed provider."""
+    p = (provider or "openai").strip().lower()
+    m = (model or "").strip()
+    if not m:
+        return m
+    slug = _canonical_embed_slug(m)
+    if slug and slug in _EMBED_MODEL_VARIANTS:
+        return _EMBED_MODEL_VARIANTS[slug].get(p, m)
+    if p == "openrouter" and "/" not in m:
+        return f"openai/{m}"
+    if p == "openai" and m.startswith("openai/"):
+        return m.split("/", 1)[1]
+    return m
+
+
+def embed_catalog_for_provider(provider: str) -> tuple[str, ...]:
+    p = (provider or "openai").strip().lower()
+    if p == "openrouter":
+        return OPENROUTER_EMBED_MODEL_OPTIONS
+    return OPENAI_EMBED_MODEL_OPTIONS
